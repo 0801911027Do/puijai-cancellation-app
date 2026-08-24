@@ -149,52 +149,96 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     setErrorMessage('');
     setIsSubmitting(true);
 
+    const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
     const finalUsername = userProfile?.displayName || userProfile?.userId || referenceId;
 
+    const payload = {
+      id: referenceId,
+      username: finalUsername,
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      category,
+      reason: reason.trim(),
+      priority,
+      rating,
+      round: userRound,
+      notes: `รอบที่ ${userRound}`,
+      created_at: new Date().toISOString(),
+    };
+
+    let isSuccess = false;
+    let resultData: any = null;
+
+    // 1. Try sending to backend API
     try {
       const res = await fetch('/api/cancellations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: referenceId,
-          username: finalUsername,
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-          category,
-          reason: reason.trim(),
-          priority,
-          rating,
-          round: userRound,
-          notes: `รอบที่ ${userRound}`,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (data.success) {
-        // Mark locally as submitted
-        try {
-          localStorage.setItem('puijai_last_submitted_id', data.data.id);
-        } catch (e) {}
-
-        // Send automatic summary notification to LINE OA chat immediately upon submit
-        sendLiffSummaryMessage({
-          ...data.data,
-          round: userRound,
-        }).catch(() => {});
-
-        onSubmitSuccess({
-          ...data.data,
-          round: userRound,
-          notes: data.data.notes || `รอบที่ ${userRound}`,
-        });
-      } else {
-        setErrorMessage(data.error || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          isSuccess = true;
+          resultData = data.data;
+        }
       }
-    } catch (err: any) {
-      setErrorMessage('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง');
-    } finally {
-      setIsSubmitting(false);
+    } catch (apiErr) {
+      console.warn('Backend API submission warning, attempting direct Google Sheet webhook fallback:', apiErr);
     }
+
+    // 2. Direct client fallback to Google Apps Script (Guaranteed delivery)
+    if (!isSuccess) {
+      try {
+        const gasRes = await fetch(gasWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+
+        if (gasRes.ok) {
+          const gasData = await gasRes.json();
+          if (gasData.success) {
+            isSuccess = true;
+            resultData = {
+              ...payload,
+              id: gasData.id || referenceId,
+              round: gasData.round || userRound,
+              status: 'ยกเลิกสำเร็จ',
+            };
+          }
+        }
+      } catch (gasErr) {
+        console.warn('Google Sheet Webhook direct submission warning:', gasErr);
+      }
+    }
+
+    if (isSuccess && resultData) {
+      try {
+        localStorage.setItem('puijai_last_submitted_id', resultData.id);
+      } catch (e) {}
+
+      // Send automatic summary notification to LINE OA chat immediately upon submit
+      sendLiffSummaryMessage({
+        id: resultData.id,
+        username: finalUsername,
+        category: resultData.category || category,
+        reason: resultData.reason || reason,
+        round: resultData.round || userRound,
+        notes: resultData.notes,
+      }).catch(() => {});
+
+      onSubmitSuccess({
+        ...resultData,
+        round: resultData.round || userRound,
+        notes: resultData.notes || `รอบที่ ${resultData.round || userRound}`,
+      });
+    } else {
+      setErrorMessage('ไม่สามารถบันทึกข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง');
+    }
+
+    setIsSubmitting(false);
   };
 
   return (
