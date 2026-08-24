@@ -60,9 +60,19 @@ export function getAllCancellations(): Cancellation[] {
   );
 }
 
-export async function getNextCancellationId(): Promise<string> {
+export async function getUserCancellationInfo(userIdentifier?: string): Promise<{
+  assignedId: string;
+  isExistingUser: boolean;
+  round: number;
+  totalHistory: number;
+}> {
   const current = await fetchFromGoogleSheets().catch(() => getAllCancellations());
+  const cleanUser = String(userIdentifier || '').trim().toLowerCase();
+  
+  let existingId: string | null = null;
+  let userHistoryCount = 0;
   let maxSeq = 0;
+
   for (const item of current) {
     if (item && item.id) {
       const match = String(item.id).match(/PUI-CANCEL-(\d+)/i);
@@ -72,10 +82,42 @@ export async function getNextCancellationId(): Promise<string> {
           maxSeq = num;
         }
       }
+
+      if (cleanUser && cleanUser !== 'pui-cancel-00001') {
+        const itemUser = String(item.username || '').trim().toLowerCase();
+        const itemNotes = String(item.notes || '').trim().toLowerCase();
+        if (itemUser === cleanUser || itemNotes.includes(cleanUser) || String(item.id).toLowerCase() === cleanUser) {
+          userHistoryCount++;
+          if (!existingId) {
+            existingId = item.id;
+          }
+        }
+      }
     }
   }
-  const nextSeq = Math.max(maxSeq + 1, current.length + 1, 1);
-  return `PUI-CANCEL-${String(nextSeq).padStart(5, '0')}`;
+
+  if (existingId) {
+    return {
+      assignedId: existingId,
+      isExistingUser: true,
+      round: userHistoryCount + 1,
+      totalHistory: userHistoryCount,
+    };
+  }
+
+  const nextSeq = Math.max(maxSeq + 1, 1);
+  const newId = `PUI-CANCEL-${String(nextSeq).padStart(5, '0')}`;
+  return {
+    assignedId: newId,
+    isExistingUser: false,
+    round: 1,
+    totalHistory: 0,
+  };
+}
+
+export async function getNextCancellationId(userIdentifier?: string): Promise<string> {
+  const info = await getUserCancellationInfo(userIdentifier);
+  return info.assignedId;
 }
 
 export function getNextCancellationIdSync(): string {
@@ -92,7 +134,7 @@ export function getNextCancellationIdSync(): string {
       }
     }
   }
-  const nextSeq = Math.max(maxSeq + 1, current.length + 1, 1);
+  const nextSeq = Math.max(maxSeq + 1, 1);
   return `PUI-CANCEL-${String(nextSeq).padStart(5, '0')}`;
 }
 

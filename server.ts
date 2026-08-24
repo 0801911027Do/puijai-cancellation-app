@@ -11,7 +11,8 @@ import {
   resetToSampleData,
   importBatchCancellations,
   fetchFromGoogleSheets,
-  getNextCancellationId
+  getNextCancellationId,
+  getUserCancellationInfo
 } from './server/db.js';
 import { analyzeCancellationsWithGemini } from './server/gemini.js';
 
@@ -98,37 +99,33 @@ async function startServer() {
     try {
       const username = String(req.query.username || req.query.userId || '').trim().toLowerCase();
       if (!username) {
-        return res.json({ success: true, exists: false, count: 0, nextRound: 1 });
+        return res.json({ success: true, exists: false, count: 0, nextRound: 1, assignedId: 'PUI-CANCEL-00001' });
       }
-      const sheetList = await fetchFromGoogleSheets().catch(() => []);
-      const localList = getAllCancellations();
-      const existingList = [...localList, ...sheetList];
-      
-      const matchedRecords = existingList.filter(c => 
-        String(c.username || '').trim().toLowerCase() === username ||
-        String(c.id || '').trim().toLowerCase() === username
-      );
-
-      const count = matchedRecords.length;
-      const nextRound = count + 1;
+      const userInfo = await getUserCancellationInfo(username);
 
       res.json({
         success: true,
-        exists: count > 0,
-        count,
-        nextRound,
-        lastRecord: matchedRecords[0] || null,
-        records: matchedRecords
+        exists: userInfo.isExistingUser,
+        count: userInfo.totalHistory,
+        nextRound: userInfo.round,
+        assignedId: userInfo.assignedId
       });
     } catch (err: any) {
-      res.json({ success: false, exists: false, count: 0, nextRound: 1 });
+      res.json({ success: false, exists: false, count: 0, nextRound: 1, assignedId: 'PUI-CANCEL-00001' });
     }
   });
 
   app.get('/api/cancellations/next-id', async (req, res) => {
     try {
-      const nextId = await getNextCancellationId();
-      res.json({ success: true, nextId });
+      const userKey = String(req.query.username || req.query.userId || '').trim();
+      const userInfo = await getUserCancellationInfo(userKey);
+      res.json({
+        success: true,
+        nextId: userInfo.assignedId,
+        isExistingUser: userInfo.isExistingUser,
+        currentRound: userInfo.round,
+        totalHistory: userInfo.totalHistory
+      });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }
@@ -142,30 +139,23 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'กรุณากรอกเหตุผลการยกเลิก' });
       }
 
-      // Check existing IDs to ensure uniqueness
-      const currentList = await fetchFromGoogleSheets().catch(() => getAllCancellations());
-      let assignedId = id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : '';
-      const isDuplicateId = assignedId && currentList.some(c => c.id === assignedId);
-      
-      if (!assignedId || isDuplicateId) {
-        assignedId = await getNextCancellationId();
-      }
-
       const assignedUsername = username && String(username).trim() && String(username).trim() !== 'PUI-CANCEL-00001'
         ? String(username).trim()
-        : assignedId;
+        : '';
 
-      // Calculate user cancellation round count (รอบที่ 1, รอบที่ 2, รอบที่ 3...)
-      const userPreviousRecords = currentList.filter(c => 
-        String(c.username || '').trim().toLowerCase() === assignedUsername.toLowerCase()
-      );
-      const userRound = round && Number(round) > 0 ? Number(round) : userPreviousRecords.length + 1;
-      const roundText = `รอบที่ ${userRound}`;
+      // Lock reference ID and calculate round for this specific LINE user
+      const userInfo = await getUserCancellationInfo(assignedUsername);
+      const finalId = (userInfo.isExistingUser && userInfo.assignedId)
+        ? userInfo.assignedId
+        : (id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : userInfo.assignedId);
+        
+      const finalRound = round && Number(round) > 0 ? Number(round) : userInfo.round;
+      const roundText = `รอบที่ ${finalRound}`;
       const finalNotes = notes ? `${notes} (${roundText})` : roundText;
 
       const saved = saveCancellation({
-        id: assignedId,
-        username: assignedUsername,
+        id: finalId,
+        username: assignedUsername || finalId,
         reason: String(reason).trim(),
         category: category || 'อื่นๆ',
         priority: priority || 'กลาง',
@@ -181,7 +171,11 @@ async function startServer() {
         const gasRes = await fetch(gasWebhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(saved),
+          body: JSON.stringify({
+            ...saved,
+            round: finalRound,
+            username: assignedUsername || finalId
+          }),
           redirect: 'follow',
           signal: AbortSignal.timeout(8000),
         });
@@ -191,7 +185,7 @@ async function startServer() {
         console.error('Google Apps Script Webhook sync warning:', err?.message || err);
       }
 
-      res.json({ success: true, data: saved });
+      res.json({ success: true, data: { ...saved, round: finalRound } });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err.message });
     }

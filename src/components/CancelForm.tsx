@@ -68,28 +68,39 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     let isMounted = true;
     const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
 
-    // 1. Fetch next ticket reference ID (Query backend first, then Google Apps Script live)
-    const resolveNextId = async () => {
+    // 1. Function to resolve ticket reference ID & user round
+    const resolveUserStatus = async (userKey?: string) => {
       let resolved = false;
+      const queryParam = userKey ? `?username=${encodeURIComponent(userKey)}` : '';
+
       try {
-        const res = await fetch('/api/cancellations/next-id');
+        const res = await fetch(`/api/cancellations/next-id${queryParam}`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.success && data.nextId) {
             setReferenceId(data.nextId);
+            if (data.currentRound) {
+              setUserRound(data.currentRound);
+              setPreviousSubmissionsCount(data.totalHistory || 0);
+            }
             resolved = true;
           }
         }
       } catch (e) {}
 
-      // Direct fallback to Google Apps Script if backend couldn't reach sheets
+      // Direct fallback to Google Apps Script
       if (!resolved) {
         try {
-          const gasRes = await fetch(`${gasWebhookUrl}?action=nextId`);
+          const gasAction = userKey ? `checkUser&username=${encodeURIComponent(userKey)}` : 'nextId';
+          const gasRes = await fetch(`${gasWebhookUrl}?action=${gasAction}`);
           if (gasRes.ok) {
             const gasData = await gasRes.json();
             if (isMounted && gasData.success && gasData.nextId) {
               setReferenceId(gasData.nextId);
+              if (gasData.currentRound) {
+                setUserRound(gasData.currentRound);
+                setPreviousSubmissionsCount(gasData.totalHistory || 0);
+              }
               resolved = true;
             }
           }
@@ -97,35 +108,24 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       }
 
       if (isMounted) {
-        if (!resolved) {
+        if (!resolved && !referenceId) {
           setReferenceId('PUI-CANCEL-00001');
         }
         setIsLoadingId(false);
       }
     };
 
-    resolveNextId();
+    // Initial resolution
+    resolveUserStatus();
 
-    // 2. Fetch LINE LIFF Profile & check previous cancellation rounds
+    // 2. Fetch LINE LIFF Profile & lock ID per user
     getFastLiffProfile((profile) => {
       if (!isMounted || !profile) return;
       setUserProfile(profile);
 
       const checkQuery = profile.userId || profile.displayName || '';
       if (checkQuery) {
-        fetch(`/api/cancellations/check?username=${encodeURIComponent(checkQuery)}`)
-          .then((res) => res.json())
-          .then((checkRes) => {
-            if (isMounted && checkRes.success) {
-              const count = Number(checkRes.count) || 0;
-              setPreviousSubmissionsCount(count);
-              setUserRound(count + 1);
-              if (checkRes.lastRecord) {
-                setPreviousRecord(checkRes.lastRecord);
-              }
-            }
-          })
-          .catch(() => {});
+        resolveUserStatus(checkQuery);
       }
     });
 

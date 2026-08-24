@@ -93,6 +93,8 @@ function doPost(e) {
     
     for (var r = 1; r < allRows.length; r++) {
       var cellId = String(allRows[r][0] || '').trim();
+      var cellNotes = String(allRows[r][7] || '').trim();
+      
       if (cellId) {
         existingIds[cellId.toUpperCase()] = true;
         var match = cellId.match(/PUI-CANCEL-(\d+)/i);
@@ -103,16 +105,36 @@ function doPost(e) {
           }
         }
       }
+
+      // ตรวจสอบว่าผู้ใช้ LINE คนนี้เคยมีประวัติอยู่ในตารางแล้วหรือไม่
+      var incomingUser = data.username ? String(data.username).trim() : '';
+      if (incomingUser && incomingUser !== 'PUI-CANCEL-00001') {
+        if (cellNotes.indexOf(incomingUser) !== -1 || cellId === incomingUser) {
+          userHistoryCount++;
+          if (!userExistingId && cellId) {
+            userExistingId = cellId; // ล็อกรหัสอ้างอิงเดิมของ LINE คนนี้ไว้เสมอ!
+          }
+        }
+      }
     }
 
-    // คำนวณรหัสคำขอ (ID) ให้ถูกต้องตามลำดับอัตโนมัติ (00001, 00002, 00003...)
     var incomingId = (data.id ? String(data.id).trim() : '');
-    var finalId = incomingId;
+    var finalId = '';
+    var finalRound = 1;
 
-    // ถ้ารหัสว่าง, ซ้ำกับแถวเดิม, หรือเป็น 00001 ขณะที่มีข้อมูลอยู่แล้ว ให้สร้างรหัสใหม่ต่อจากเลขสูงสุด
-    if (!finalId || existingIds[finalId.toUpperCase()] || (finalId === 'PUI-CANCEL-00001' && maxSeqNum >= 1)) {
-      var nextNum = maxSeqNum + 1;
-      finalId = 'PUI-CANCEL-' + ('00000' + nextNum).slice(-5);
+    // ถ้ารู้จักผู้ใช้ LINE คนเดิม ให้ใช้รหัสอ้างอิงเดิม และปรับรอบเป็น รอบที่ 2, 3...
+    if (userExistingId) {
+      finalId = userExistingId;
+      finalRound = (data.round && Number(data.round) > 1) ? Number(data.round) : (userHistoryCount + 1);
+    } else {
+      // ผู้ใช้คนใหม่ -> รันรหัสใหม่ถัดไป
+      if (incomingId && incomingId.startsWith('PUI-CANCEL-') && !existingIds[incomingId.toUpperCase()]) {
+        finalId = incomingId;
+      } else {
+        var nextNum = maxSeqNum + 1;
+        finalId = 'PUI-CANCEL-' + ('00000' + nextNum).slice(-5);
+      }
+      finalRound = 1;
     }
     
     var createdAt = data.created_at ? new Date(data.created_at).toLocaleString('th-TH') : new Date().toLocaleString('th-TH');
@@ -122,10 +144,10 @@ function doPost(e) {
     var rating = data.rating || 3;
     var status = data.status || 'ยกเลิกสำเร็จ';
     
-    // บันทึกรอบและชื่อผู้ใช้ลงในช่องหมายเหตุ (Column H) เพื่อจดจำประวัติผู้ใช้
-    var rawNotes = data.notes || (data.round ? ('รอบที่ ' + data.round) : 'รอบที่ 1');
-    var username = data.username && data.username !== 'PUI-CANCEL-00001' ? String(data.username).trim() : '';
-    var finalNotes = username ? (rawNotes + ' | ผู้ใช้: ' + username) : rawNotes;
+    // บันทึกรอบและชื่อผู้ใช้ลงในช่องหมายเหตุ (Column H)
+    var roundLabel = 'รอบที่ ' + finalRound;
+    var userIdentifier = data.username && data.username !== 'PUI-CANCEL-00001' ? String(data.username).trim() : '';
+    var finalNotes = userIdentifier ? (roundLabel + ' | LINE: ' + userIdentifier) : roundLabel;
     
     // เพิ่มแถวใหม่ลงตาราง Google Sheet (1 แถวต่อ 1 คำขอเท่านั้น)
     sheet.appendRow([
@@ -143,7 +165,7 @@ function doPost(e) {
       success: true,
       message: 'บันทึกข้อมูลลงใน Google Sheet เรียบร้อยแล้ว',
       id: finalId,
-      round: data.round || 1
+      round: finalRound
     })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (err) {
@@ -165,8 +187,25 @@ function doGet(e) {
     var sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
     var data = sheet.getDataRange().getValues();
     
-    // 1. Endpoint คำนวณรหัสคำขอถัดไปโดยตรงจากตาราง (สำหรับให้หน้าเว็บหรือแอปดึงไปแสดงผลทันที)
-    if (e && e.parameter && e.parameter.action === 'nextId') {
+    // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ (nextId / checkUser)
+    if (e && e.parameter && (e.parameter.action === 'nextId' || e.parameter.action === 'checkUser')) {
+      var checkUser = String(e.parameter.username || e.parameter.userId || '').trim();
+      var foundUserId = null;
+      var foundCount = 0;
+      
+      if (checkUser && checkUser !== 'PUI-CANCEL-00001') {
+        for (var u = 1; u < data.length; u++) {
+          var rowId = String(data[u][0] || '').trim();
+          var rowNotes = String(data[u][7] || '').trim();
+          if (rowNotes.indexOf(checkUser) !== -1 || rowId === checkUser) {
+            foundCount++;
+            if (!foundUserId && rowId) {
+              foundUserId = rowId;
+            }
+          }
+        }
+      }
+
       var maxSeq = 0;
       for (var r = 1; r < data.length; r++) {
         var cellId = String(data[r][0] || '').trim();
@@ -178,13 +217,26 @@ function doGet(e) {
           }
         }
       }
+
+      if (foundUserId) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          nextId: foundUserId,
+          isExistingUser: true,
+          currentRound: foundCount + 1,
+          totalHistory: foundCount
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
       var nextNumber = Math.max(maxSeq + 1, 1);
       var nextId = 'PUI-CANCEL-' + ('00000' + nextNumber).slice(-5);
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
         nextId: nextId,
-        maxSeq: maxSeq,
-        totalRows: Math.max(0, data.length - 1)
+        isExistingUser: false,
+        currentRound: 1,
+        totalHistory: 0,
+        maxSeq: maxSeq
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -201,7 +253,9 @@ function doGet(e) {
       
       var rowNotes = String(row[7] || '');
       var parsedUser = '';
-      if (rowNotes.indexOf('ผู้ใช้: ') !== -1) {
+      if (rowNotes.indexOf('LINE: ') !== -1) {
+        parsedUser = rowNotes.split('LINE: ')[1].trim();
+      } else if (rowNotes.indexOf('ผู้ใช้: ') !== -1) {
         parsedUser = rowNotes.split('ผู้ใช้: ')[1].trim();
       } else {
         parsedUser = String(row[0] || '');
@@ -218,30 +272,6 @@ function doGet(e) {
         status: String(row[6] || 'ยกเลิกสำเร็จ'),
         notes: rowNotes
       });
-    }
-
-    // 2. Endpoint ตรวจสอบประวัติรอบของผู้ใช้โดยตรง (checkUser)
-    if (e && e.parameter && e.parameter.action === 'checkUser') {
-      var checkUsername = String(e.parameter.username || e.parameter.userId || '').trim().toLowerCase();
-      var userRecords = [];
-      for (var u = 0; u < result.length; u++) {
-        var item = result[u];
-        if (
-          String(item.username).toLowerCase() === checkUsername ||
-          String(item.notes).toLowerCase().indexOf(checkUsername) !== -1 ||
-          String(item.id).toLowerCase() === checkUsername
-        ) {
-          userRecords.push(item);
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        exists: userRecords.length > 0,
-        count: userRecords.length,
-        nextRound: userRecords.length + 1,
-        lastRecord: userRecords[0] || null,
-        records: userRecords
-      })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // ตรวจสอบสถานะสำหรับการปิดกั้นแชทบอทตอบคำถาม
