@@ -15,6 +15,33 @@ var SPREADSHEET_ID = '1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY';
 var SHEET_NAME = 'รายการคำขอยกเลิก';
 
 /**
+ * ฟังก์ชันค้นหาชีตข้อมูลที่ถูกต้องอัตโนมัติ (รองรับทั้งชื่อ 'รายการคำขอยกเลิก', 'Sheet1', 'แผ่นงาน1')
+ */
+function getPuijaiSheet(ss) {
+  if (!ss) {
+    ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  }
+  // 1. ค้นหาตามชื่อที่ระบุไว้
+  var target = ss.getSheetByName(SHEET_NAME);
+  if (target) return target;
+
+  // 2. ค้นหาชีตใดก็ตามที่มีหัวตาราง "รหัสคำขอ"
+  var sheets = ss.getSheets();
+  for (var s = 0; s < sheets.length; s++) {
+    var cur = sheets[s];
+    if (cur.getLastRow() > 0) {
+      var headerVal = String(cur.getRange(1, 1).getValue() || '').trim();
+      if (headerVal.indexOf('รหัส') !== -1 || headerVal.indexOf('CANCEL') !== -1) {
+        return cur;
+      }
+    }
+  }
+
+  // 3. ถ้าไม่พบให้ใช้ชีตแรก หรือ Active Sheet
+  return ss.getActiveSheet() || (sheets.length > 0 ? sheets[0] : ss.insertSheet(SHEET_NAME));
+}
+
+/**
  * 1. ฟังก์ชันรับข้อมูล POST (บันทึกข้อมูลคำขอยกเลิกใหม่ลง Google Sheet)
  */
 function doPost(e) {
@@ -30,7 +57,7 @@ function doPost(e) {
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
+    var sheet = getPuijaiSheet(ss);
     
     // ถ้ายังไม่มีแถว Header ให้สร้างหัวตารางอัตโนมัติ
     if (sheet.getLastRow() === 0) {
@@ -185,7 +212,7 @@ function doPost(e) {
 function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
+    var sheet = getPuijaiSheet(ss);
     var data = sheet.getDataRange().getValues();
     
     // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ (nextId / checkUser)

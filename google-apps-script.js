@@ -4,9 +4,9 @@
  * ============================================================================
  * 
  * วิธีการติดตั้ง/อัปเดต:
- * 1. เปิดไฟล์ Google Sheet ของคุณ (https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY)
+ * 1. เปิด Google Sheet ของคุณ (https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY)
  * 2. ไปที่เมนู "ส่วนขยาย" (Extensions) > "Apps Script"
- * 3. วางโค้ดทั้งหมดนี้ลงในไฟล์ Code.gs
+ * 3. ลบโค้ดเดิมทั้งหมด แล้วคัดลอกโค้ดนี้ไปวางแทนที่
  * 4. กดปุ่ม "ทำให้ใช้งานได้" (Deploy) > "การจัดการการทำให้ใช้งานได้" (Manage deployments)
  * 5. กดไอคอนดินสอแก้ไข (Edit) > เลือกเวอร์ชัน "เวอร์ชันใหม่" (New version) > กด "ทำให้ใช้งานได้" (Deploy)
  */
@@ -15,7 +15,34 @@ var SPREADSHEET_ID = '1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY';
 var SHEET_NAME = 'รายการคำขอยกเลิก';
 
 /**
- * 1. ฟังก์ชันรับข้อมูล POST (เมื่อมีผู้ใช้กรอกแบบฟอร์มยกเลิกใหม่จากหน้าเว็บ)
+ * ฟังก์ชันค้นหาชีตข้อมูลที่ถูกต้องอัตโนมัติ (รองรับทั้งชื่อ 'รายการคำขอยกเลิก', 'Sheet1', 'แผ่นงาน1')
+ */
+function getPuijaiSheet(ss) {
+  if (!ss) {
+    ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  }
+  // 1. ค้นหาตามชื่อที่ระบุไว้
+  var target = ss.getSheetByName(SHEET_NAME);
+  if (target) return target;
+
+  // 2. ค้นหาชีตใดก็ตามที่มีหัวตาราง "รหัสคำขอ"
+  var sheets = ss.getSheets();
+  for (var s = 0; s < sheets.length; s++) {
+    var cur = sheets[s];
+    if (cur.getLastRow() > 0) {
+      var headerVal = String(cur.getRange(1, 1).getValue() || '').trim();
+      if (headerVal.indexOf('รหัส') !== -1 || headerVal.indexOf('CANCEL') !== -1) {
+        return cur;
+      }
+    }
+  }
+
+  // 3. ถ้าไม่พบให้ใช้ชีตแรก หรือ Active Sheet
+  return ss.getActiveSheet() || (sheets.length > 0 ? sheets[0] : ss.insertSheet(SHEET_NAME));
+}
+
+/**
+ * 1. ฟังก์ชันรับข้อมูล POST (บันทึกข้อมูลคำขอยกเลิกใหม่ลง Google Sheet)
  */
 function doPost(e) {
   // ใช้ LockService ป้องกันคำขอซ้อนพร้อมกันในเวลาเดียวกัน (Concurrency & Race condition protection)
@@ -30,9 +57,9 @@ function doPost(e) {
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
+    var sheet = getPuijaiSheet(ss);
     
-    // ถ้ายังไม่มี Header ให้สร้างแถวหัวตารางให้อัตโนมัติ
+    // ถ้ายังไม่มีแถว Header ให้สร้างหัวตารางอัตโนมัติ
     if (sheet.getLastRow() === 0) {
       setupSheetHeaders(sheet);
     }
@@ -48,16 +75,17 @@ function doPost(e) {
       data = e.parameter;
     }
     
-    // ตรวจสอบว่าเป็น LINE Webhook Event หรือไม่ (เมื่อผู้ใช้พิมพ์แชทหา LINE OA)
+    // ตรวจสอบว่าเป็น LINE Webhook Event หรือไม่
     if (data && data.events && data.events.length > 0) {
       var event = data.events[0];
       if (event.replyToken) {
         replyLineLiffButton(event.replyToken);
-        return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'LINE Webhook Replied' })).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'LINE Webhook Replied' }))
+          .setMimeType(ContentService.MimeType.JSON);
       }
     }
 
-    // ตรวจสอบว่ามีข้อมูลจริงส่งมาหรือไม่ หากไม่มีจะไม่ทำการบันทึกลง Sheet
+    // ตรวจสอบว่ามีข้อมูลจริงส่งมาหรือไม่
     if (!data || Object.keys(data).length === 0) {
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
@@ -149,7 +177,7 @@ function doPost(e) {
     var userIdentifier = data.username && data.username !== 'PUI-CANCEL-00001' ? String(data.username).trim() : '';
     var finalNotes = userIdentifier ? (roundLabel + ' | LINE: ' + userIdentifier) : roundLabel;
     
-    // เพิ่มแถวใหม่ลงตาราง Google Sheet (1 แถวต่อ 1 คำขอเท่านั้น)
+    // บันทึกแถวใหม่ลงในตาราง Google Sheet (1 แถวต่อ 1 คำขอเท่านั้น)
     sheet.appendRow([
       finalId,
       createdAt,
@@ -184,7 +212,7 @@ function doPost(e) {
 function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
+    var sheet = getPuijaiSheet(ss);
     var data = sheet.getDataRange().getValues();
     
     // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ (nextId / checkUser)
@@ -329,7 +357,6 @@ function setupSheetHeaders(sheet) {
     'หมายเหตุ'
   ];
   
-  // เขียนหัวตารางลงที่แถวที่ 1 เสมอ (ป้องกันการ appendRow ซ้ำด้านล่าง)
   var headerRange = sheet.getRange(1, 1, 1, headers.length);
   headerRange.setValues([headers]);
   headerRange.setFontWeight('bold');
