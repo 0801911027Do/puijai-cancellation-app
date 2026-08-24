@@ -467,3 +467,54 @@ function replyLineLiffButton(replyToken) {
     Logger.log('LINE Reply Error: ' + e);
   }
 }
+
+/**
+ * 5. ฟังก์ชันช่วยปรับแก้รอบใน Google Sheet ทั้งหมดอัตโนมัติ (แก้ไขแถวเดิมให้เป็น รอบที่ 1, รอบที่ 2, รอบที่ 3... ตามลำดับ)
+ * วิธีใช้: ในหน้า Apps Script ให้เลือกฟังก์ชัน 'fixSheetRounds' ด้านบน แล้วกดปุ่ม "เรียกใช้ (Run)"
+ */
+function fixSheetRounds() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = getPuijaiSheet(ss);
+  var data = sheet.getDataRange().getValues();
+  
+  if (data.length <= 1) {
+    Logger.log('ไม่มีข้อมูลแถวในตาราง');
+    return;
+  }
+
+  var userRoundCounter = {};
+  var updatedCount = 0;
+  
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row[0] && !row[1] && !row[2]) continue;
+    
+    var rowId = String(row[0] || '').trim();
+    var rowNotes = String(row[7] || '').trim();
+    
+    // กำหนด Key ประจำตัวของผู้ใช้
+    var userKey = rowId;
+    if (rowNotes.indexOf('[UID:') !== -1) {
+      userKey = rowNotes.split('[UID:')[1].split(']')[0].trim();
+    }
+    
+    if (!userRoundCounter[userKey]) {
+      userRoundCounter[userKey] = 1;
+    } else {
+      userRoundCounter[userKey]++;
+    }
+    
+    var currentRound = userRoundCounter[userKey];
+    var updatedNote = 'รอบที่ ' + currentRound;
+    
+    if (rowNotes.indexOf('[UID:') !== -1) {
+      updatedNote += ' [UID:' + userKey + ']';
+    }
+    
+    // บันทึกค่ารอบใหม่ลงในคอลัมน์ H (แถวที่ i + 1, คอลัมน์ที่ 8)
+    sheet.getRange(i + 1, 8).setValue(updatedNote);
+    updatedCount++;
+  }
+  
+  Logger.log('อัปเดตหมายเหตุรอบสำเร็จแล้วทั้งหมด ' + updatedCount + ' แถว');
+}
