@@ -145,25 +145,55 @@ function doPost(e) {
       }
     }
     
-    var incomingId = (data.id ? String(data.id).trim() : '');
-    var incomingUser = (data.username ? String(data.username).trim() : '');
+    var allRows = sheet.getDataRange().getValues();
+    var maxSeqNum = 0;
+    var userExistingId = null;
+    var userHistoryCount = 0;
     
-    // กำหนดรหัสคำขอเป้าหมาย (ค่าเริ่มต้นคือ PUI-CANCEL-00001)
-    var targetId = (incomingId && incomingId.startsWith('PUI-CANCEL-'))
-      ? incomingId
-      : ((incomingUser && incomingUser.startsWith('PUI-CANCEL-')) ? incomingUser : 'PUI-CANCEL-00001');
+    // ดึงข้อมูลระบุตัวตนของผู้ใช้ LINE (userId จาก LIFF หรือ displayName)
+    var incomingUserId = (data.userId || '').toString().trim();
+    var incomingUsername = (data.username || '').toString().trim();
+    var userKey = incomingUserId || (incomingUsername && !incomingUsername.startsWith('PUI-CANCEL-') ? incomingUsername : '');
 
-    // ตรวจสอบจำนวนครั้งที่เคยบันทึกรหัสนี้ในตาราง เพื่อคำนวณรอบถัดไปอัตโนมัติ
-    var sameIdCount = 0;
     for (var r = 1; r < allRows.length; r++) {
       var cellId = String(allRows[r][0] || '').trim();
-      if (cellId && cellId.toUpperCase() === targetId.toUpperCase()) {
-        sameIdCount++;
+      var cellNotes = String(allRows[r][7] || '').trim();
+      
+      // หาค่าลำดับสูงสุดในตาราง (00001, 00002, 00003...)
+      if (cellId) {
+        var match = cellId.match(/PUI-CANCEL-(\d+)/i);
+        if (match) {
+          var num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxSeqNum && num < 90000) {
+            maxSeqNum = num;
+          }
+        }
+      }
+
+      // ตรวจสอบว่าผู้ใช้ LINE คนนี้เคยมีประวัติอยู่ในตารางแล้วหรือไม่
+      if (userKey) {
+        if (cellNotes.indexOf(userKey) !== -1 || cellId === userKey) {
+          userHistoryCount++;
+          if (!userExistingId && cellId) {
+            userExistingId = cellId; // ล็อกรหัสเดิมของผู้ใช้ LINE คนนี้!
+          }
+        }
       }
     }
 
-    var finalId = targetId;
-    var finalRound = sameIdCount + 1;
+    var finalId = '';
+    var finalRound = 1;
+
+    if (userExistingId) {
+      // 1. ผู้ใช้ LINE คนเดิม -> ล็อกรหัสเดิม (PUI-CANCEL-XXXXX) และเพิ่มรอบเป็น รอบที่ 2, รอบที่ 3...
+      finalId = userExistingId;
+      finalRound = userHistoryCount + 1;
+    } else {
+      // 2. ผู้ใช้ LINE คนใหม่ -> รันรหัสถัดไปอัตโนมัติ (เริ่มจาก PUI-CANCEL-00001, 00002, 00003...)
+      var nextNum = Math.max(maxSeqNum + 1, 1);
+      finalId = 'PUI-CANCEL-' + ('00000' + nextNum).slice(-5);
+      finalRound = 1;
+    }
     
     var createdAt = data.created_at ? formatCellDate(new Date(data.created_at)) : formatCellDate(new Date());
     var category = data.category || 'อื่นๆ';
@@ -172,8 +202,9 @@ function doPost(e) {
     var rating = data.rating || 3;
     var status = data.status || 'ยกเลิกสำเร็จ';
     
-    // บันทึกเฉพาะรอบที่เพื่อซ่อนข้อมูลส่วนตัว (Privacy-first masking)
-    var finalNotes = 'รอบที่ ' + finalRound;
+    // บันทึกหมายเหตุ: แสดง "รอบที่ X" พร้อมจดจำ LINE UID ไว้ในระบบเพื่ออ้างอิงรอบถัดไป
+    var roundLabel = 'รอบที่ ' + finalRound;
+    var finalNotes = userKey ? (roundLabel + ' [UID:' + userKey + ']') : roundLabel;
     
     // บันทึกแถวใหม่ลงในตาราง Google Sheet (1 แถวต่อ 1 คำขอเท่านั้น)
     sheet.appendRow([
@@ -213,25 +244,54 @@ function doGet(e) {
     var sheet = getPuijaiSheet(ss);
     var data = sheet.getDataRange().getValues();
     
-    // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ (nextId / checkUser)
+    // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ LINE (nextId / checkUser)
     if (e && e.parameter && (e.parameter.action === 'nextId' || e.parameter.action === 'checkUser')) {
-      var checkUser = String(e.parameter.username || e.parameter.userId || e.parameter.id || 'PUI-CANCEL-00001').trim();
-      var targetId = (checkUser && checkUser.startsWith('PUI-CANCEL-')) ? checkUser : 'PUI-CANCEL-00001';
-      
-      var sameIdCount = 0;
-      for (var u = 1; u < data.length; u++) {
-        var rowId = String(data[u][0] || '').trim();
-        if (rowId && rowId.toUpperCase() === targetId.toUpperCase()) {
-          sameIdCount++;
+      var checkUser = String(e.parameter.userId || e.parameter.username || '').trim();
+      var foundUserId = null;
+      var foundCount = 0;
+      var maxSeq = 0;
+
+      for (var r = 1; r < data.length; r++) {
+        var cellId = String(data[r][0] || '').trim();
+        var cellNotes = String(data[r][7] || '').trim();
+
+        var match = cellId.match(/PUI-CANCEL-(\d+)/i);
+        if (match) {
+          var num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxSeq && num < 90000) {
+            maxSeq = num;
+          }
+        }
+
+        if (checkUser && checkUser !== 'PUI-CANCEL-00001') {
+          if (cellNotes.indexOf(checkUser) !== -1 || cellId === checkUser) {
+            foundCount++;
+            if (!foundUserId && cellId) {
+              foundUserId = cellId;
+            }
+          }
         }
       }
 
+      if (foundUserId) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          nextId: foundUserId,
+          isExistingUser: true,
+          currentRound: foundCount + 1,
+          totalHistory: foundCount
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var nextNumber = Math.max(maxSeq + 1, 1);
+      var nextId = 'PUI-CANCEL-' + ('00000' + nextNumber).slice(-5);
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
-        nextId: targetId,
-        isExistingUser: sameIdCount > 0,
-        currentRound: sameIdCount + 1,
-        totalHistory: sameIdCount
+        nextId: nextId,
+        isExistingUser: false,
+        currentRound: 1,
+        totalHistory: 0,
+        maxSeq: maxSeq
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -244,6 +304,7 @@ function doGet(e) {
         if (!row[0] && !row[1] && !row[2]) continue; // ข้ามแถวว่าง
         
         var rowNotes = String(row[7] || '');
+        var cleanNotes = rowNotes.split(' [UID:')[0].trim();
         var parsedUser = '';
         if (rowNotes.indexOf('LINE: ') !== -1) {
           parsedUser = rowNotes.split('LINE: ')[1].trim();
@@ -261,7 +322,7 @@ function doGet(e) {
           priority: String(row[4] || 'กลาง'),
           rating: Number(row[5]) || 3,
           status: String(row[6] || 'ยกเลิกสำเร็จ'),
-          notes: rowNotes,
+          notes: cleanNotes || rowNotes,
           username: parsedUser
         });
       }

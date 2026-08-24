@@ -68,10 +68,12 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     let isMounted = true;
     const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
 
-    // 1. Function to resolve ticket reference ID & user round
-    const resolveUserStatus = async (userKey?: string) => {
+    // 1. Function to resolve ticket reference ID & user round per LINE User
+    const resolveUserStatus = async (profileObj?: LiffUserProfile | null) => {
       let resolved = false;
-      const queryParam = userKey ? `?username=${encodeURIComponent(userKey)}` : '';
+      const uId = profileObj?.userId || '';
+      const uName = profileObj?.displayName || '';
+      const queryParam = `?userId=${encodeURIComponent(uId)}&username=${encodeURIComponent(uName || uId)}`;
 
       try {
         const res = await fetch(`/api/cancellations/next-id${queryParam}`);
@@ -91,8 +93,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       // Direct fallback to Google Apps Script
       if (!resolved) {
         try {
-          const gasAction = userKey ? `checkUser&username=${encodeURIComponent(userKey)}` : 'nextId';
-          const gasRes = await fetch(`${gasWebhookUrl}?action=${gasAction}`);
+          const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(uId)}&username=${encodeURIComponent(uName)}`);
           if (gasRes.ok) {
             const gasData = await gasRes.json();
             if (isMounted && gasData.success && gasData.nextId) {
@@ -122,11 +123,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     getFastLiffProfile((profile) => {
       if (!isMounted || !profile) return;
       setUserProfile(profile);
-
-      const checkQuery = profile.userId || profile.displayName || '';
-      if (checkQuery) {
-        resolveUserStatus(checkQuery);
-      }
+      resolveUserStatus(profile);
     });
 
     return () => {
@@ -150,10 +147,12 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     setIsSubmitting(true);
 
     const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-    const finalUsername = referenceId || 'PUI-CANCEL-00001';
+    const finalUserId = userProfile?.userId || '';
+    const finalUsername = userProfile?.displayName || userProfile?.userId || referenceId || 'PUI-CANCEL-00001';
 
     const payload = {
       id: referenceId || 'PUI-CANCEL-00001',
+      userId: finalUserId,
       username: finalUsername,
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
