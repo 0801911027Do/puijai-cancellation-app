@@ -1,0 +1,12 @@
+# Puijai Cancellation Service
+
+> Puijai Service Cancellation Portal and Support Management for LINE AI Chatbot.
+
+## Overview
+
+Puijai Service Cancellation (ระบบศูนย์ขอยกเลิกการใช้งานปุยใจ) provides an automated cancellation and feedback management system for the Puijai AI chatbot on LINE.
+
+## Links
+
+- [Puijai Cancellation App](https://puijai-cancellation-app.vercel.app/): Cancellation request portal for LINE AI Chatbot
+- [Sitemap](https://puijai-cancellation-app.vercel.app/sitemap.xml): XML Sitemap

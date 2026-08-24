@@ -1,6 +1,6 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.ts" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|llms\\.txt|puijai-logo\\.jpg|favicon\\.ico).*)", "destination": "/index.html" }
   ]
 }

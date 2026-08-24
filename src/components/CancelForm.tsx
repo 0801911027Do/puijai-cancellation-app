@@ -407,13 +407,13 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
         {/* 1. Reason Category Selection */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
-            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5">1</span>
+            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5" aria-hidden="true">1</span>
             <span className="min-w-0 flex-1 leading-snug">
               <span className="inline-block">หมวดหมู่เหตุผล</span><span className="inline-block">ที่ขอยกเลิก</span>
             </span>
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" role="radiogroup" aria-label="หมวดหมู่เหตุผลที่ขอยกเลิก">
             {CATEGORIES.map((cat) => (
               <label
                 key={cat.label}
@@ -426,6 +426,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                 <input
                   type="radio"
                   name="category"
+                  aria-label={cat.label}
                   checked={category === cat.label}
                   onChange={() => setCategory(cat.label)}
                   className="mt-1 text-pink-600 focus:ring-pink-500 flex-shrink-0"
@@ -445,16 +446,18 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
         {/* 2. Detailed Reason Textarea */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
-            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5">2</span>
-            <span className="min-w-0 flex-1 leading-snug">
+            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0" aria-hidden="true">2</span>
+            <label htmlFor="cancel-reason-input" className="min-w-0 flex-1 leading-snug cursor-pointer">
               <span className="inline-block">รายละเอียดเหตุผล</span><span className="inline-block">และข้อเสนอแนะ <span className="text-rose-500 whitespace-nowrap">*</span></span>
-            </span>
+            </label>
           </h3>
 
           <div>
             <textarea
+              id="cancel-reason-input"
               rows={4}
               required
+              aria-label="รายละเอียดเหตุผลและข้อเสนอแนะ"
               placeholder="ช่วยบอกเราสักนิดว่าทำไมถึงต้องการยกเลิก หรือมีจุดไหนที่คุณอยากให้น้องปุยใจปรับปรุงเพิ่มเติม (เช่น ตอบช้า, คำตอบไม่ตรงใจ, สลับไปใช้แอปอื่น ฯลฯ)..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -469,16 +472,18 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
         {/* 3. Optional Contact Info (for follow-up if user wants) */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
-            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5">3</span>
+            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5" aria-hidden="true">3</span>
             <span className="min-w-0 flex-1 leading-snug">
               <span>ข้อมูลติดต่อเพิ่มเติม</span> <span className="text-xs font-normal text-slate-400">(ไม่บังคับระบุ)</span>
             </span>
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">เบอร์โทรศัพท์ (ถ้าสะดวกให้ติดต่อ):</label>
+              <label htmlFor="phone-input" className="block text-xs font-medium text-slate-600 mb-1">เบอร์โทรศัพท์ (ถ้าสะดวกให้ติดต่อ):</label>
               <input
+                id="phone-input"
                 type="tel"
+                aria-label="เบอร์โทรศัพท์สำหรับติดต่อกลับ"
                 placeholder="08X-XXX-XXXX"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -486,9 +491,11 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">อีเมลติดต่อ (ถ้ามี):</label>
+              <label htmlFor="email-input" className="block text-xs font-medium text-slate-600 mb-1">อีเมลติดต่อ (ถ้ามี):</label>
               <input
+                id="email-input"
                 type="email"
+                aria-label="อีเมลสำหรับติดต่อกลับ"
                 placeholder="yourname@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -505,12 +512,14 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
               ระดับความเร่งด่วนในการยกเลิก
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="ระดับความเร่งด่วนในการยกเลิก">
               {(['ต่ำ', 'กลาง', 'สูง'] as PriorityLevel[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPriority(p)}
+                  aria-label={`เลือกระดับความเร่งด่วน ${p}`}
+                  aria-pressed={priority === p}
                   className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all ${
                     priority === p
                       ? p === 'สูง'
@@ -532,13 +541,15 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
               ความพึงพอใจการใช้งานที่ผ่านมา
             </label>
-            <div className="flex items-center space-x-1 py-1">
+            <div className="flex items-center space-x-1 py-1" role="group" aria-label="คะแนนความพึงพอใจการใช้งานที่ผ่านมา">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   type="button"
                   onClick={() => setRating(star)}
-                  className="p-1 text-amber-400 hover:scale-110 transition-transform"
+                  aria-label={`ให้คะแนน ${star} จาก 5 คะแนน`}
+                  aria-pressed={star <= rating}
+                  className="p-1 text-amber-400 hover:scale-110 transition-transform cursor-pointer"
                 >
                   <Star
                     className={`w-6 h-6 ${
@@ -570,6 +581,8 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           <label className="flex items-start space-x-3 cursor-pointer min-w-0 select-none">
             <input
               type="checkbox"
+              id="confirm-cancellation-checkbox"
+              aria-label="ข้าพเจ้ายืนยันความประสงค์ที่จะยกเลิกการใช้งานแชทบอท Puijai สำหรับบัญชี LINE นี้ และส่งข้อเสนอแนะเข้าสู่ระบบ"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
               className="mt-0.5 w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 flex-shrink-0 cursor-pointer"
@@ -588,6 +601,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
           <button
             type="submit"
+            aria-label="ยืนยันส่งคำขอยกเลิกบริการ"
             disabled={isSubmitting || !confirmed}
             className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center space-x-2 shadow-md transition-all ${
               confirmed && !isSubmitting
