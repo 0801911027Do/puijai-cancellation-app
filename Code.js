@@ -15,30 +15,54 @@ var SPREADSHEET_ID = '1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY';
 var SHEET_NAME = 'รายการคำขอยกเลิก';
 
 /**
- * ฟังก์ชันค้นหาชีตข้อมูลที่ถูกต้องอัตโนมัติ (รองรับทั้งชื่อ 'รายการคำขอยกเลิก', 'Sheet1', 'แผ่นงาน1')
+ * ฟังก์ชันค้นหาชีตข้อมูลที่ถูกต้องอัตโนมัติ (ค้นหาชีตที่มีข้อมูลมากที่สุด หรือชื่อตรง)
  */
 function getPuijaiSheet(ss) {
   if (!ss) {
     ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
   }
-  // 1. ค้นหาตามชื่อที่ระบุไว้
-  var target = ss.getSheetByName(SHEET_NAME);
-  if (target) return target;
-
-  // 2. ค้นหาชีตใดก็ตามที่มีหัวตาราง "รหัสคำขอ"
+  
   var sheets = ss.getSheets();
+  var bestSheet = null;
+  var maxRows = 0;
+
+  // 1. ตรวจสอบทุกแผ่นงานในไฟล์ เพื่อหาแผ่นงานที่มีข้อมูลคำขอ
   for (var s = 0; s < sheets.length; s++) {
     var cur = sheets[s];
-    if (cur.getLastRow() > 0) {
-      var headerVal = String(cur.getRange(1, 1).getValue() || '').trim();
-      if (headerVal.indexOf('รหัส') !== -1 || headerVal.indexOf('CANCEL') !== -1) {
-        return cur;
-      }
+    var lastR = cur.getLastRow();
+    
+    // ถ้าเจอชื่อ 'รายการคำขอยกเลิก' และมีข้อมูล ให้เลือกทันที
+    if (cur.getName() === SHEET_NAME && lastR >= 1) {
+      return cur;
+    }
+
+    if (lastR > maxRows) {
+      maxRows = lastR;
+      bestSheet = cur;
     }
   }
 
-  // 3. ถ้าไม่พบให้ใช้ชีตแรก หรือ Active Sheet
-  return ss.getActiveSheet() || (sheets.length > 0 ? sheets[0] : ss.insertSheet(SHEET_NAME));
+  if (bestSheet) {
+    return bestSheet;
+  }
+
+  var target = ss.getSheetByName(SHEET_NAME);
+  return target || (sheets.length > 0 ? sheets[0] : ss.insertSheet(SHEET_NAME));
+}
+
+/**
+ * ฟังก์ชันจัดรูปแบบวันที่ให้เป็นไทยอ่านง่าย
+ */
+function formatCellDate(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    try {
+      return Utilities.formatDate(val, "Asia/Bangkok", "d/M/yyyy HH:mm:ss");
+    } catch (e) {
+      return val.toLocaleString('th-TH');
+    }
+  }
+  return String(val);
 }
 
 /**
@@ -97,6 +121,8 @@ function doPost(e) {
     var allRows = sheet.getDataRange().getValues();
     var maxSeqNum = 0;
     var existingIds = {};
+    var userExistingId = null;
+    var userHistoryCount = 0;
     
     var incomingReason = String(data.reason || '').trim();
     var incomingCategory = String(data.category || '').trim();
@@ -165,7 +191,7 @@ function doPost(e) {
       finalRound = 1;
     }
     
-    var createdAt = data.created_at ? new Date(data.created_at).toLocaleString('th-TH') : new Date().toLocaleString('th-TH');
+    var createdAt = data.created_at ? formatCellDate(new Date(data.created_at)) : formatCellDate(new Date());
     var category = data.category || 'อื่นๆ';
     var reason = data.reason || '-';
     var priority = data.priority || 'กลาง';
@@ -268,38 +294,36 @@ function doGet(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    if (data.length <= 1) {
-      return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-    
     var result = [];
+    
     // เริ่มอ่านจากแถวที่ 2 (เว้นแถว Header)
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      if (!row[0]) continue; // ข้ามแถวว่าง
-      
-      var rowNotes = String(row[7] || '');
-      var parsedUser = '';
-      if (rowNotes.indexOf('LINE: ') !== -1) {
-        parsedUser = rowNotes.split('LINE: ')[1].trim();
-      } else if (rowNotes.indexOf('ผู้ใช้: ') !== -1) {
-        parsedUser = rowNotes.split('ผู้ใช้: ')[1].trim();
-      } else {
-        parsedUser = String(row[0] || '');
-      }
+    if (data.length > 1) {
+      for (var i = 1; i < data.length; i++) {
+        var row = data[i];
+        if (!row[0] && !row[1] && !row[2]) continue; // ข้ามแถวว่าง
+        
+        var rowNotes = String(row[7] || '');
+        var parsedUser = '';
+        if (rowNotes.indexOf('LINE: ') !== -1) {
+          parsedUser = rowNotes.split('LINE: ')[1].trim();
+        } else if (rowNotes.indexOf('ผู้ใช้: ') !== -1) {
+          parsedUser = rowNotes.split('ผู้ใช้: ')[1].trim();
+        } else {
+          parsedUser = String(row[0] || '');
+        }
 
-      result.push({
-        id: String(row[0] || ''),
-        username: parsedUser,
-        created_at: String(row[1] || ''),
-        category: String(row[2] || 'อื่นๆ'),
-        reason: String(row[3] || '-'),
-        priority: String(row[4] || 'กลาง'),
-        rating: Number(row[5]) || 3,
-        status: String(row[6] || 'ยกเลิกสำเร็จ'),
-        notes: rowNotes
-      });
+        result.push({
+          id: String(row[0] || ''),
+          created_at: formatCellDate(row[1]),
+          category: String(row[2] || 'อื่นๆ'),
+          reason: String(row[3] || '-'),
+          priority: String(row[4] || 'กลาง'),
+          rating: Number(row[5]) || 3,
+          status: String(row[6] || 'ยกเลิกสำเร็จ'),
+          notes: rowNotes,
+          username: parsedUser
+        });
+      }
     }
     
     // ตรวจสอบสถานะสำหรับการปิดกั้นแชทบอทตอบคำถาม
@@ -325,6 +349,7 @@ function doGet(e) {
     
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
+      sheetName: sheet.getName(),
       count: result.length,
       data: result
     })).setMimeType(ContentService.MimeType.JSON);
