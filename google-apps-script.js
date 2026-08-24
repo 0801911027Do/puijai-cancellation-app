@@ -3,12 +3,16 @@
  * Google Apps Script สำหรับระบบยกเลิกการใช้งานปุยใจ (Puijai Cancellation App)
  * ============================================================================
  * 
- * วิธีการติดตั้ง/อัปเดต:
- * 1. เปิด Google Sheet ของคุณ (https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY)
+ * ลิงก์ Google Sheet: 
+ * https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY/edit?pli=1&gid=1550119891#gid=1550119891
+ *
+ * วิธีการติดตั้ง / อัปเดต:
+ * 1. เปิด Google Sheet ลิงก์ด้านบน
  * 2. ไปที่เมนู "ส่วนขยาย" (Extensions) > "Apps Script"
  * 3. ลบโค้ดเดิมทั้งหมด แล้วคัดลอกโค้ดนี้ไปวางแทนที่
- * 4. กดปุ่ม "ทำให้ใช้งานได้" (Deploy) > "การจัดการการทำให้ใช้งานได้" (Manage deployments)
- * 5. กดไอคอนดินสอแก้ไข (Edit) > เลือกเวอร์ชัน "เวอร์ชันใหม่" (New version) > กด "ทำให้ใช้งานได้" (Deploy)
+ * 4. กด "บันทึก" (Ctrl + S)
+ * 5. กดปุ่มสีน้ำเงิน "ทำให้ใช้งานได้" (Deploy) > "การจัดการการทำให้ใช้งานได้" (Manage deployments)
+ * 6. กดไอคอนดินสอแก้ไข (Edit) > เลือกเวอร์ชัน "เวอร์ชันใหม่" (New version) > กด "ทำให้ใช้งานได้" (Deploy)
  */
 
 var SPREADSHEET_ID = '1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY';
@@ -371,7 +375,7 @@ function doGet(e) {
 function setupSheetHeaders(sheet) {
   if (!sheet) {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    sheet = getPuijaiSheet(ss);
+    sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
   }
   
   var headers = [
