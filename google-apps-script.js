@@ -13,9 +13,13 @@
 
 var SPREADSHEET_ID = '1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY';
 var SHEET_NAME = 'รายการคำขอยกเลิก';
+var TARGET_SHEET_GID = 1550119891; // แผ่นงาน GID 1550119891 ที่ระบุโดยตรง
 
 /**
- * ฟังก์ชันค้นหาชีตข้อมูลที่ถูกต้องอัตโนมัติ (ค้นหาชีตที่มีข้อมูลมากที่สุด หรือชื่อตรง)
+ * ฟังก์ชันค้นหาชีตข้อมูลที่ถูกต้องอัตโนมัติ
+ * 1. ค้นหาจาก GID 1550119891 โดยตรงเป็นลำดับแรก
+ * 2. ค้นหาจากชื่อ 'รายการคำขอยกเลิก'
+ * 3. ค้นหาแผ่นงานที่มีข้อมูลมากที่สุด
  */
 function getPuijaiSheet(ss) {
   if (!ss) {
@@ -23,31 +27,31 @@ function getPuijaiSheet(ss) {
   }
   
   var sheets = ss.getSheets();
+
+  // 1. ค้นหาแผ่นงานตาม GID: 1550119891 โดยตรง
+  for (var g = 0; g < sheets.length; g++) {
+    if (sheets[g].getSheetId() === TARGET_SHEET_GID) {
+      return sheets[g];
+    }
+  }
+
+  // 2. ค้นหาแผ่นงานตามชื่อ
+  var target = ss.getSheetByName(SHEET_NAME);
+  if (target) return target;
+
+  // 3. ค้นหาแผ่นงานที่มีแถวข้อมูลมากที่สุด
   var bestSheet = null;
   var maxRows = 0;
-
-  // 1. ตรวจสอบทุกแผ่นงานในไฟล์ เพื่อหาแผ่นงานที่มีข้อมูลคำขอ
   for (var s = 0; s < sheets.length; s++) {
     var cur = sheets[s];
     var lastR = cur.getLastRow();
-    
-    // ถ้าเจอชื่อ 'รายการคำขอยกเลิก' และมีข้อมูล ให้เลือกทันที
-    if (cur.getName() === SHEET_NAME && lastR >= 1) {
-      return cur;
-    }
-
     if (lastR > maxRows) {
       maxRows = lastR;
       bestSheet = cur;
     }
   }
 
-  if (bestSheet) {
-    return bestSheet;
-  }
-
-  var target = ss.getSheetByName(SHEET_NAME);
-  return target || (sheets.length > 0 ? sheets[0] : ss.insertSheet(SHEET_NAME));
+  return bestSheet || (sheets.length > 0 ? sheets[0] : ss.insertSheet(SHEET_NAME));
 }
 
 /**
@@ -367,7 +371,7 @@ function doGet(e) {
 function setupSheetHeaders(sheet) {
   if (!sheet) {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
-    sheet = ss.getSheetByName(SHEET_NAME) || ss.getActiveSheet();
+    sheet = getPuijaiSheet(ss);
   }
   
   var headers = [

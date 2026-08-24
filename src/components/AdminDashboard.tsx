@@ -40,7 +40,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ทั้งหมด');
   const [selectedPriority, setSelectedPriority] = useState<string>('ทั้งหมด');
-  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY/edit?gid=0#gid=0');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY/edit?pli=1&gid=1550119891#gid=1550119891');
   const [copiedTSV, setCopiedTSV] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importTsvText, setImportTsvText] = useState('');
