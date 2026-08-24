@@ -660,9 +660,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <td className="py-3 px-5 border-r border-slate-200/80 text-slate-800 min-w-[320px] lg:min-w-[420px]">
                       <p className="break-words whitespace-pre-wrap leading-relaxed text-xs sm:text-sm font-medium">{item.reason}</p>
                       {item.notes && item.notes.trim() !== '' && item.notes.trim() !== '-' && (
-                        <div className="text-xs text-amber-900 bg-amber-50 px-3 py-1.5 rounded-md border border-amber-200 mt-1.5 leading-relaxed break-words whitespace-pre-wrap">
-                          <span className="font-bold text-amber-950 whitespace-nowrap mr-1">หมายเหตุ admin:</span>
-                          <span>{item.notes}</span>
+                        <div className="mt-1.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-pink-800 bg-pink-50 px-2.5 py-0.5 rounded-full border border-pink-200 shadow-2xs">
+                            <span>📋 {item.notes}</span>
+                          </span>
                         </div>
                       )}
                     </td>
