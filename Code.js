@@ -145,51 +145,25 @@ function doPost(e) {
       }
     }
     
+    var incomingId = (data.id ? String(data.id).trim() : '');
+    var incomingUser = (data.username ? String(data.username).trim() : '');
+    
+    // กำหนดรหัสคำขอเป้าหมาย (ค่าเริ่มต้นคือ PUI-CANCEL-00001)
+    var targetId = (incomingId && incomingId.startsWith('PUI-CANCEL-'))
+      ? incomingId
+      : ((incomingUser && incomingUser.startsWith('PUI-CANCEL-')) ? incomingUser : 'PUI-CANCEL-00001');
+
+    // ตรวจสอบจำนวนครั้งที่เคยบันทึกรหัสนี้ในตาราง เพื่อคำนวณรอบถัดไปอัตโนมัติ
+    var sameIdCount = 0;
     for (var r = 1; r < allRows.length; r++) {
       var cellId = String(allRows[r][0] || '').trim();
-      var cellNotes = String(allRows[r][7] || '').trim();
-      
-      if (cellId) {
-        existingIds[cellId.toUpperCase()] = true;
-        var match = cellId.match(/PUI-CANCEL-(\d+)/i);
-        if (match) {
-          var num = parseInt(match[1], 10);
-          if (!isNaN(num) && num > maxSeqNum && num < 90000) {
-            maxSeqNum = num;
-          }
-        }
-      }
-
-      // ตรวจสอบว่าผู้ใช้ LINE คนนี้เคยมีประวัติอยู่ในตารางแล้วหรือไม่
-      var incomingUser = data.username ? String(data.username).trim() : '';
-      if (incomingUser && incomingUser !== 'PUI-CANCEL-00001') {
-        if (cellNotes.indexOf(incomingUser) !== -1 || cellId === incomingUser) {
-          userHistoryCount++;
-          if (!userExistingId && cellId) {
-            userExistingId = cellId; // ล็อกรหัสอ้างอิงเดิมของ LINE คนนี้ไว้เสมอ!
-          }
-        }
+      if (cellId && cellId.toUpperCase() === targetId.toUpperCase()) {
+        sameIdCount++;
       }
     }
 
-    var incomingId = (data.id ? String(data.id).trim() : '');
-    var finalId = '';
-    var finalRound = 1;
-
-    // ถ้ารู้จักผู้ใช้ LINE คนเดิม ให้ใช้รหัสอ้างอิงเดิม และปรับรอบเป็น รอบที่ 2, 3...
-    if (userExistingId) {
-      finalId = userExistingId;
-      finalRound = (data.round && Number(data.round) > 1) ? Number(data.round) : (userHistoryCount + 1);
-    } else {
-      // ผู้ใช้คนใหม่ -> รันรหัสใหม่ถัดไป
-      if (incomingId && incomingId.startsWith('PUI-CANCEL-') && !existingIds[incomingId.toUpperCase()]) {
-        finalId = incomingId;
-      } else {
-        var nextNum = maxSeqNum + 1;
-        finalId = 'PUI-CANCEL-' + ('00000' + nextNum).slice(-5);
-      }
-      finalRound = 1;
-    }
+    var finalId = targetId;
+    var finalRound = sameIdCount + 1;
     
     var createdAt = data.created_at ? formatCellDate(new Date(data.created_at)) : formatCellDate(new Date());
     var category = data.category || 'อื่นๆ';
@@ -198,10 +172,8 @@ function doPost(e) {
     var rating = data.rating || 3;
     var status = data.status || 'ยกเลิกสำเร็จ';
     
-    // บันทึกรอบและชื่อผู้ใช้ลงในช่องหมายเหตุ (Column H)
-    var roundLabel = 'รอบที่ ' + finalRound;
-    var userIdentifier = data.username && data.username !== 'PUI-CANCEL-00001' ? String(data.username).trim() : '';
-    var finalNotes = userIdentifier ? (roundLabel + ' | LINE: ' + userIdentifier) : roundLabel;
+    // บันทึกเฉพาะรอบที่เพื่อซ่อนข้อมูลส่วนตัว (Privacy-first masking)
+    var finalNotes = 'รอบที่ ' + finalRound;
     
     // บันทึกแถวใหม่ลงในตาราง Google Sheet (1 แถวต่อ 1 คำขอเท่านั้น)
     sheet.appendRow([
@@ -243,54 +215,23 @@ function doGet(e) {
     
     // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ (nextId / checkUser)
     if (e && e.parameter && (e.parameter.action === 'nextId' || e.parameter.action === 'checkUser')) {
-      var checkUser = String(e.parameter.username || e.parameter.userId || '').trim();
-      var foundUserId = null;
-      var foundCount = 0;
+      var checkUser = String(e.parameter.username || e.parameter.userId || e.parameter.id || 'PUI-CANCEL-00001').trim();
+      var targetId = (checkUser && checkUser.startsWith('PUI-CANCEL-')) ? checkUser : 'PUI-CANCEL-00001';
       
-      if (checkUser && checkUser !== 'PUI-CANCEL-00001') {
-        for (var u = 1; u < data.length; u++) {
-          var rowId = String(data[u][0] || '').trim();
-          var rowNotes = String(data[u][7] || '').trim();
-          if (rowNotes.indexOf(checkUser) !== -1 || rowId === checkUser) {
-            foundCount++;
-            if (!foundUserId && rowId) {
-              foundUserId = rowId;
-            }
-          }
+      var sameIdCount = 0;
+      for (var u = 1; u < data.length; u++) {
+        var rowId = String(data[u][0] || '').trim();
+        if (rowId && rowId.toUpperCase() === targetId.toUpperCase()) {
+          sameIdCount++;
         }
       }
 
-      var maxSeq = 0;
-      for (var r = 1; r < data.length; r++) {
-        var cellId = String(data[r][0] || '').trim();
-        var match = cellId.match(/PUI-CANCEL-(\d+)/i);
-        if (match) {
-          var num = parseInt(match[1], 10);
-          if (!isNaN(num) && num > maxSeq && num < 90000) {
-            maxSeq = num;
-          }
-        }
-      }
-
-      if (foundUserId) {
-        return ContentService.createTextOutput(JSON.stringify({
-          success: true,
-          nextId: foundUserId,
-          isExistingUser: true,
-          currentRound: foundCount + 1,
-          totalHistory: foundCount
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
-
-      var nextNumber = Math.max(maxSeq + 1, 1);
-      var nextId = 'PUI-CANCEL-' + ('00000' + nextNumber).slice(-5);
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
-        nextId: nextId,
-        isExistingUser: false,
-        currentRound: 1,
-        totalHistory: 0,
-        maxSeq: maxSeq
+        nextId: targetId,
+        isExistingUser: sameIdCount > 0,
+        currentRound: sameIdCount + 1,
+        totalHistory: sameIdCount
       })).setMimeType(ContentService.MimeType.JSON);
     }
 

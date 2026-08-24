@@ -150,10 +150,10 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     setIsSubmitting(true);
 
     const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-    const finalUsername = userProfile?.displayName || userProfile?.userId || referenceId;
+    const finalUsername = referenceId || 'PUI-CANCEL-00001';
 
     const payload = {
-      id: referenceId,
+      id: referenceId || 'PUI-CANCEL-00001',
       username: finalUsername,
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
