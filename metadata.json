@@ -1,0 +1,6 @@
+{
+  "name": "ระบบยกเลิกการใช้งานปุยใจ (Puijai Cancellation App)",
+  "description": "ระบบแจ้งยกเลิกบริการปุยใจ แบบสอบถามเหตุผล พร้อมระบบวิเคราะห์ข้อมูล และจัดเก็บรูปแบบ Google Sheets สำหรับผู้ดูแลระบบ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

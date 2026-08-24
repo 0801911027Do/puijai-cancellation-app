@@ -1,0 +1,86 @@
+{
+  "title": "LINE OA Integration Specs for Puijai Cancellation App",
+  "liff_url": "https://liff.line.me/2011043750-SsHmvV2G",
+  "rich_menu_spec": {
+    "size": {
+      "width": 2500,
+      "height": 843
+    },
+    "selected": true,
+    "name": "Puijai Cancellation Menu",
+    "chatBarText": "เมนูยกเลิกบริการ",
+    "areas": [
+      {
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 2500,
+          "height": 843
+        },
+        "action": {
+          "type": "uri",
+          "label": "ขอยกเลิกการใช้งาน",
+          "uri": "https://liff.line.me/2011043750-SsHmvV2G"
+        }
+      }
+    ]
+  },
+  "line_flex_message": {
+    "type": "flex",
+    "altText": "แบบฟอร์มขอยกเลิกการใช้งานแชทบอท Puijai",
+    "contents": {
+      "type": "bubble",
+      "header": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "text",
+            "text": "Puijai Cancellation Service",
+            "weight": "bold",
+            "color": "#ffffff",
+            "size": "md"
+          }
+        ],
+        "backgroundColor": "#0284c7"
+      },
+      "body": {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "md",
+        "contents": [
+          {
+            "type": "text",
+            "text": "ศูนย์ขอยกเลิกการใช้งานแชทบอท",
+            "weight": "bold",
+            "size": "lg",
+            "color": "#0f172a"
+          },
+          {
+            "type": "text",
+            "text": "หากคุณต้องการยื่นขอยกเลิกบริการแชทบอท Puijai และส่งประเมินข้อเสนอแนะ สามารถกดปุ่มด้านล่างเพื่อดำเนินการได้ทันทีครับ",
+            "wrap": true,
+            "size": "sm",
+            "color": "#475569"
+          }
+        ]
+      },
+      "footer": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "button",
+            "action": {
+              "type": "uri",
+              "label": "เปิดแบบฟอร์มขอยกเลิก",
+              "uri": "https://liff.line.me/2011043750-SsHmvV2G"
+            },
+            "style": "primary",
+            "color": "#0d9488"
+          }
+        ]
+      }
+    }
+  }
+}
