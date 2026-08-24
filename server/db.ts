@@ -83,10 +83,11 @@ export async function getUserCancellationInfo(userIdentifier?: string): Promise<
         }
       }
 
-      if (cleanUser && cleanUser !== 'pui-cancel-00001') {
+      if (cleanUser) {
         const itemUser = String(item.username || '').trim().toLowerCase();
         const itemNotes = String(item.notes || '').trim().toLowerCase();
-        if (itemUser === cleanUser || itemNotes.includes(cleanUser) || String(item.id).toLowerCase() === cleanUser) {
+        const itemId = String(item.id || '').trim().toLowerCase();
+        if (itemUser === cleanUser || itemNotes.includes(cleanUser) || itemId === cleanUser) {
           userHistoryCount++;
           if (!existingId) {
             existingId = item.id;

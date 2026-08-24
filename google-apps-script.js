@@ -117,16 +117,40 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    // อ่านข้อมูลทั้งหมดในชีตเพื่อตรวจสอบรหัสคำขอล่าสุด และป้องกันข้อมูลเบิ้ลซ้ำ
+    // อ่านข้อมูลทั้งหมดในชีต
     var allRows = sheet.getDataRange().getValues();
     var maxSeqNum = 0;
     var userExistingId = null;
     var userHistoryCount = 0;
     
-    // ดึงข้อมูลระบุตัวตนของผู้ใช้ LINE (userId จาก LIFF หรือ displayName)
+    var incomingReason = String(data.reason || '').trim();
+    var incomingCategory = String(data.category || '').trim();
+    
+    // 1. ตรวจสอบป้องกันการกดส่งซ้ำหรือคำขอซ้อนกันในเสี้ยววินาที (Deduplication Check)
+    if (allRows.length > 1) {
+      var lastRow = allRows[allRows.length - 1];
+      var lastId = String(lastRow[0] || '').trim();
+      var lastCategory = String(lastRow[2] || '').trim();
+      var lastReason = String(lastRow[3] || '').trim();
+      
+      // ถ้าข้อมูลแถวล่าสุดที่เพิ่งบันทึกไปตรงกับที่ส่งเข้ามา ให้ตอบกลับสำเร็จทันที ไม่เพิ่มแถวเบิ้ลซ้ำ!
+      if (incomingReason && lastReason === incomingReason && lastCategory === incomingCategory) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          message: 'ข้อมูลนี้ถูกบันทึกไปแล้ว (Prevented duplicate row)',
+          id: lastId,
+          isDuplicatePrevented: true
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+    
+    // ดึงข้อมูลระบุตัวตนของผู้ใช้ LINE (userId จาก LIFF หรือ client key)
     var incomingUserId = (data.userId || '').toString().trim();
     var incomingUsername = (data.username || '').toString().trim();
     var userKey = incomingUserId || (incomingUsername && !incomingUsername.startsWith('PUI-CANCEL-') ? incomingUsername : '');
+    if (!userKey && data.id && String(data.id).startsWith('PUI-CANCEL-')) {
+      userKey = String(data.id).trim();
+    }
 
     for (var r = 1; r < allRows.length; r++) {
       var cellId = String(allRows[r][0] || '').trim();
@@ -219,7 +243,7 @@ function doGet(e) {
     
     // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ LINE (nextId / checkUser)
     if (e && e.parameter && (e.parameter.action === 'nextId' || e.parameter.action === 'checkUser')) {
-      var checkUser = String(e.parameter.userId || e.parameter.username || '').trim();
+      var checkUser = String(e.parameter.userId || e.parameter.username || e.parameter.id || '').trim();
       var foundUserId = null;
       var foundCount = 0;
       var maxSeq = 0;

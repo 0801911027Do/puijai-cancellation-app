@@ -68,12 +68,26 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     let isMounted = true;
     const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
 
+    // Helper to get persistent user identifier (LINE userId or unique device key)
+    const getPersistentUserKey = (profile?: LiffUserProfile | null) => {
+      if (profile?.userId) return profile.userId;
+      if (profile?.displayName) return profile.displayName;
+      let storedKey = '';
+      try {
+        storedKey = localStorage.getItem('puijai_client_device_key') || '';
+        if (!storedKey) {
+          storedKey = 'LINE-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+          localStorage.setItem('puijai_client_device_key', storedKey);
+        }
+      } catch (e) {}
+      return storedKey || 'LINE-DEVICE-01';
+    };
+
     // 1. Function to resolve ticket reference ID & user round per LINE User
     const resolveUserStatus = async (profileObj?: LiffUserProfile | null) => {
       let resolved = false;
-      const uId = profileObj?.userId || '';
-      const uName = profileObj?.displayName || '';
-      const queryParam = `?userId=${encodeURIComponent(uId)}&username=${encodeURIComponent(uName || uId)}`;
+      const userKey = getPersistentUserKey(profileObj);
+      const queryParam = `?userId=${encodeURIComponent(userKey)}&username=${encodeURIComponent(profileObj?.displayName || userKey)}`;
 
       try {
         const res = await fetch(`/api/cancellations/next-id${queryParam}`);
@@ -93,7 +107,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       // Direct fallback to Google Apps Script
       if (!resolved) {
         try {
-          const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(uId)}&username=${encodeURIComponent(uName)}`);
+          const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userKey)}&username=${encodeURIComponent(profileObj?.displayName || userKey)}`);
           if (gasRes.ok) {
             const gasData = await gasRes.json();
             if (isMounted && gasData.success && gasData.nextId) {
@@ -147,8 +161,23 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     setIsSubmitting(true);
 
     const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-    const finalUserId = userProfile?.userId || '';
-    const finalUsername = userProfile?.displayName || userProfile?.userId || referenceId || 'PUI-CANCEL-00001';
+    
+    // Get unique identifier for this user/device
+    let persistentKey = '';
+    if (userProfile?.userId) {
+      persistentKey = userProfile.userId;
+    } else if (userProfile?.displayName) {
+      persistentKey = userProfile.displayName;
+    } else {
+      try {
+        persistentKey = localStorage.getItem('puijai_client_device_key') || 'LINE-DEVICE-01';
+      } catch (e) {
+        persistentKey = 'LINE-DEVICE-01';
+      }
+    }
+
+    const finalUserId = persistentKey;
+    const finalUsername = userProfile?.displayName || persistentKey;
 
     const payload = {
       id: referenceId || 'PUI-CANCEL-00001',
