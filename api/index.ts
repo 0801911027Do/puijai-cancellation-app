@@ -111,15 +111,13 @@ app.get('/api/cancellations/check', async (req, res) => {
 
 app.post('/api/cancellations', async (req, res) => {
   try {
-    const { id, username, reason, category, priority, email, phone, rating, round, notes } = req.body;
+    const { id, userId, username, reason, category, priority, email, phone, rating, round, notes } = req.body;
 
     if (!reason) {
       return res.status(400).json({ success: false, error: 'กรุณากรอกเหตุผลการยกเลิก' });
     }
 
-    const assignedUsername = username && String(username).trim() && String(username).trim() !== 'PUI-CANCEL-00001'
-      ? String(username).trim()
-      : '';
+    const assignedUsername = String(userId || username || '').trim();
 
     // Lock reference ID and calculate round for this specific LINE user
     const userInfo = await getUserCancellationInfo(assignedUsername);
