@@ -16,6 +16,23 @@ export interface LiffUserProfile {
  * Retrieve cached profile immediately from LocalStorage (0ms)
  */
 export function getCachedLiffProfile(): LiffUserProfile | null {
+  // Check URL query parameters first (supports testing via ?userId=...&username=...)
+  try {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      const urlUserId = params.get('userId') || params.get('user_id');
+      const urlUsername = params.get('username') || params.get('name') || params.get('displayName');
+      const urlPicture = params.get('picture') || params.get('pictureUrl') || params.get('avatar');
+      if (urlUserId || urlUsername) {
+        return {
+          userId: urlUserId || undefined,
+          displayName: urlUsername || (urlUserId ? `User-${urlUserId.substring(0, 6)}` : undefined),
+          pictureUrl: urlPicture || undefined,
+        };
+      }
+    }
+  } catch (e) {}
+
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (raw) {
@@ -177,14 +194,18 @@ export async function sendLiffSummaryMessage(cancellation: {
   try {
     const initialized = await initLiff();
     if (initialized && liff && liff.isInClient()) {
-      const roundLabel = cancellation.round && cancellation.round > 1
-        ? `\nรอบการยกเลิก: รอบที่ ${cancellation.round}`
-        : (cancellation.notes && cancellation.notes.includes('รอบที่') ? `\nรอบการยกเลิก: ${cancellation.notes}` : '');
+      const finalRoundNumber = cancellation.round && cancellation.round > 0
+        ? cancellation.round
+        : (cancellation.notes?.match(/รอบที่\s*(\d+)/)?.[1]
+            ? parseInt(cancellation.notes.match(/รอบที่\s*(\d+)/)![1], 10)
+            : 1);
+
+      const roundText = `\nรอบการยกเลิก: รอบที่ ${finalRoundNumber}`;
 
       await liff.sendMessages([
         {
           type: 'text',
-          text: `📋 [แจ้งเตือน: บันทึกขอยกเลิกสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}${roundLabel}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
+          text: `📋 [แจ้งเตือน: บันทึกขอยกเลิกสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}${roundText}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
         }
       ]);
       return true;

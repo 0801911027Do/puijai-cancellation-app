@@ -60,15 +60,28 @@ export function getAllCancellations(): Cancellation[] {
   );
 }
 
-export async function getUserCancellationInfo(userIdentifier?: string): Promise<{
+export async function getUserCancellationInfo(userIdentifier?: string, altIdentifier?: string): Promise<{
   assignedId: string;
   isExistingUser: boolean;
   round: number;
   totalHistory: number;
 }> {
   const current = await fetchFromGoogleSheets().catch(() => getAllCancellations());
-  const cleanUser = String(userIdentifier || '').trim().toLowerCase();
   
+  const rawKeys = [userIdentifier, altIdentifier]
+    .filter(Boolean)
+    .map(k => String(k).trim().toLowerCase());
+
+  const searchKeys = new Set<string>();
+  for (const k of rawKeys) {
+    if (k && k !== 'line-device-01') {
+      searchKeys.add(k);
+      // Strip brackets like [UID:xxx] or [xxx]
+      const stripped = k.replace(/^\[uid:/i, '').replace(/\[|\]/g, '').trim();
+      if (stripped) searchKeys.add(stripped);
+    }
+  }
+
   let existingId: string | null = null;
   let userHistoryCount = 0;
   let maxSeq = 0;
@@ -83,11 +96,28 @@ export async function getUserCancellationInfo(userIdentifier?: string): Promise<
         }
       }
 
-      if (cleanUser) {
+      if (searchKeys.size > 0) {
         const itemUser = String(item.username || '').trim().toLowerCase();
+        const itemUserId = String((item as any).userId || '').trim().toLowerCase();
         const itemNotes = String(item.notes || '').trim().toLowerCase();
         const itemId = String(item.id || '').trim().toLowerCase();
-        if (itemUser === cleanUser || itemNotes.includes(cleanUser) || itemId === cleanUser) {
+
+        let isMatch = false;
+        for (const key of searchKeys) {
+          if (
+            itemUser === key ||
+            itemUser.includes(key) ||
+            itemUserId === key ||
+            itemUserId.includes(key) ||
+            itemNotes.includes(key) ||
+            itemId === key
+          ) {
+            isMatch = true;
+            break;
+          }
+        }
+
+        if (isMatch) {
           userHistoryCount++;
           if (!existingId) {
             existingId = item.id;
@@ -97,9 +127,9 @@ export async function getUserCancellationInfo(userIdentifier?: string): Promise<
     }
   }
 
-  if (existingId) {
+  if (existingId || userHistoryCount > 0) {
     return {
-      assignedId: existingId,
+      assignedId: existingId || `PUI-CANCEL-${String(Math.max(maxSeq + 1, 1)).padStart(5, '0')}`,
       isExistingUser: true,
       round: userHistoryCount + 1,
       totalHistory: userHistoryCount,
@@ -192,35 +222,70 @@ export function importBatchCancellations(records: Cancellation[]): Cancellation[
   return records;
 }
 
-export async function fetchFromGoogleSheets(): Promise<Cancellation[]> {
-  const localList = getAllCancellations();
-  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-  try {
-    const response = await fetch(webhookUrl, { redirect: 'follow' });
-    if (response.ok) {
-      const json = await response.json();
-      if (json.success && Array.isArray(json.data)) {
-        const filteredData = json.data.filter((item: Cancellation) => 
-          item.username !== 'ผู้ใช้ทดสอบ' && 
-          item.email !== 'test@example.com' &&
-          item.id !== 'PUI-CANCEL-1530' &&
-          item.id !== 'PUI-CANCEL-9336'
-        );
+let gasCacheData: Cancellation[] = [];
+let gasCacheTimestamp = 0;
+const GAS_CACHE_TTL_MS = 25 * 1000; // 25 seconds cache TTL
+let gasFetchPromise: Promise<Cancellation[]> | null = null;
 
-        // Merge local records and Google Sheets records, avoiding duplicates by id
-        const combinedMap = new Map<string, Cancellation>();
-        for (const item of [...localList, ...filteredData]) {
-          if (item && item.id) {
-            combinedMap.set(item.id, item);
-          }
-        }
-        return Array.from(combinedMap.values()).sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      }
-    }
-  } catch (err) {
-    console.error('Failed fetching live data from Google Sheets Webhook:', err);
+export async function fetchFromGoogleSheets(forceFresh = false): Promise<Cancellation[]> {
+  const now = Date.now();
+  const localList = getAllCancellations();
+
+  // If cache is fresh and not forced, return INSTANTLY (0ms)
+  if (!forceFresh && gasCacheData.length > 0 && (now - gasCacheTimestamp < GAS_CACHE_TTL_MS)) {
+    return gasCacheData;
   }
-  return localList;
+
+  // If already fetching, return current cache or reuse promise (Deduplication)
+  if (gasFetchPromise) {
+    if (gasCacheData.length > 0) return gasCacheData;
+    return gasFetchPromise;
+  }
+
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
+
+  gasFetchPromise = (async () => {
+    try {
+      const response = await fetch(webhookUrl, { 
+        redirect: 'follow',
+        signal: AbortSignal.timeout(5000)
+      });
+      if (response.ok) {
+        const json = await response.json();
+        if (json.success && Array.isArray(json.data)) {
+          const filteredData = json.data.filter((item: Cancellation) => 
+            item.username !== 'ผู้ใช้ทดสอบ' && 
+            item.email !== 'test@example.com' &&
+            item.id !== 'PUI-CANCEL-1530' &&
+            item.id !== 'PUI-CANCEL-9336'
+          );
+
+          // Merge local records and Google Sheets records, avoiding duplicates by id
+          const combinedMap = new Map<string, Cancellation>();
+          for (const item of [...localList, ...filteredData]) {
+            if (item && item.id) {
+              combinedMap.set(item.id, item);
+            }
+          }
+          const result = Array.from(combinedMap.values()).sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          gasCacheData = result;
+          gasCacheTimestamp = Date.now();
+          return result;
+        }
+      }
+    } catch (err) {
+      console.error('Failed fetching live data from Google Sheets Webhook:', err);
+    } finally {
+      gasFetchPromise = null;
+    }
+    return gasCacheData.length > 0 ? gasCacheData : localList;
+  })();
+
+  if (gasCacheData.length > 0) {
+    return gasCacheData;
+  }
+
+  return gasFetchPromise;
 }

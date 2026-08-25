@@ -117,8 +117,9 @@ async function startServer() {
 
   app.get('/api/cancellations/next-id', async (req, res) => {
     try {
-      const userKey = String(req.query.username || req.query.userId || '').trim();
-      const userInfo = await getUserCancellationInfo(userKey);
+      const userId = String(req.query.userId || '').trim();
+      const username = String(req.query.username || '').trim();
+      const userInfo = await getUserCancellationInfo(userId, username);
       res.json({
         success: true,
         nextId: userInfo.assignedId,
@@ -133,26 +134,60 @@ async function startServer() {
 
   app.post('/api/cancellations', async (req, res) => {
     try {
-      const { id, username, reason, category, priority, email, phone, rating, round, notes } = req.body;
+      const { id, userId, username, reason, category, priority, email, phone, rating, round, notes } = req.body;
 
       if (!reason) {
         return res.status(400).json({ success: false, error: 'กรุณากรอกเหตุผลการยกเลิก' });
       }
 
-      const assignedUsername = username && String(username).trim() && String(username).trim() !== 'PUI-CANCEL-00001'
-        ? String(username).trim()
-        : '';
+      const assignedUsername = String(userId || username || '').trim();
+      let finalId = id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : '';
+      let finalRound = round && Number(round) > 0 ? Number(round) : 1;
 
-      // Lock reference ID and calculate round for this specific LINE user
-      const userInfo = await getUserCancellationInfo(assignedUsername);
-      const finalId = (userInfo.isExistingUser && userInfo.assignedId)
-        ? userInfo.assignedId
-        : (id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : userInfo.assignedId);
+      // 1. POST to GAS first — GAS is the Single Source of Truth for ID + round
+      const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
+      try {
+        const gasRes = await fetch(gasWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: assignedUsername,
+            username: assignedUsername || finalId,
+            reason: String(reason).trim(),
+            category: category || 'อื่นๆ',
+            priority: priority || 'กลาง',
+            rating: rating ? Number(rating) : 3,
+            round: finalRound,
+            created_at: new Date().toISOString(),
+          }),
+          redirect: 'follow',
+          signal: AbortSignal.timeout(8000),
+        });
+        if (gasRes.ok) {
+          const gasData = await gasRes.json();
+          if (gasData.success && gasData.id) {
+            finalId = gasData.id;
+            finalRound = gasData.round || finalRound;
+            console.log('GAS Authoritative ID:', finalId, 'Round:', finalRound);
+          }
+        }
+      } catch (err: any) {
+        console.error('GAS Webhook push warning:', err?.message || err);
+      }
+
+      // 2. Fallback: compute locally if GAS didn't return an ID
+      if (!finalId) {
+        const userInfo = await getUserCancellationInfo(assignedUsername);
+        finalId = userInfo.assignedId;
+        finalRound = userInfo.round;
+      }
         
-      const finalRound = round && Number(round) > 0 ? Number(round) : userInfo.round;
       const roundText = `รอบที่ ${finalRound}`;
-      const finalNotes = notes ? `${notes} (${roundText})` : roundText;
+      const finalNotes = notes
+        ? (notes.includes('รอบที่') ? roundText : `${notes} (${roundText})`)
+        : roundText;
 
+      // 3. Save to local store as backup
       const saved = saveCancellation({
         id: finalId,
         username: assignedUsername || finalId,
@@ -164,26 +199,6 @@ async function startServer() {
         rating: rating ? Number(rating) : 3,
         notes: finalNotes,
       });
-
-      // Auto-push to Google Apps Script Webhook (Only real user data)
-      try {
-        const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-        const gasRes = await fetch(gasWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...saved,
-            round: finalRound,
-            username: assignedUsername || finalId
-          }),
-          redirect: 'follow',
-          signal: AbortSignal.timeout(8000),
-        });
-        const gasText = await gasRes.text();
-        console.log('Google Sheets Webhook Sync Success:', gasRes.status, gasText);
-      } catch (err: any) {
-        console.error('Google Apps Script Webhook sync warning:', err?.message || err);
-      }
 
       res.json({ success: true, data: { ...saved, round: finalRound } });
     } catch (err: any) {

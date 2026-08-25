@@ -49,8 +49,34 @@ app.post('/api/cancellations/sync-sheets', async (req, res) => {
 
 app.get('/api/cancellations/next-id', async (req, res) => {
   try {
-    const userKey = String(req.query.username || req.query.userId || '').trim();
-    const userInfo = await getUserCancellationInfo(userKey);
+    const userId = String(req.query.userId || '').trim();
+    const username = String(req.query.username || '').trim();
+
+    // 1. Primary: Query GAS directly (Single Source of Truth)
+    const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
+    try {
+      const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (gasRes.ok) {
+        const gasData = await gasRes.json();
+        if (gasData.success && gasData.nextId) {
+          return res.json({
+            success: true,
+            nextId: gasData.nextId,
+            isExistingUser: gasData.isExistingUser || false,
+            currentRound: gasData.currentRound || 1,
+            totalHistory: gasData.totalHistory || 0
+          });
+        }
+      }
+    } catch (gasErr) {
+      console.warn('GAS direct query failed, falling back to local:', gasErr);
+    }
+
+    // 2. Fallback: Local computation
+    const userInfo = await getUserCancellationInfo(userId, username);
     res.json({
       success: true,
       nextId: userInfo.assignedId,
@@ -66,12 +92,19 @@ app.get('/api/cancellations/next-id', async (req, res) => {
 // Bot Webhook Interceptor: Checks if bot should stop responding to user
 app.get('/api/bot/should-reply', async (req, res) => {
   try {
-    const username = String(req.query.username || req.query.userId || '').trim().toLowerCase();
-    if (!username) {
+    const userId = String(req.query.userId || '').trim().toLowerCase();
+    const username = String(req.query.username || '').trim().toLowerCase();
+    const searchKeys = [userId, username].filter(Boolean);
+    if (searchKeys.length === 0) {
       return res.json({ shouldReply: true, isCancelled: false });
     }
     const list = await fetchFromGoogleSheets().catch(() => getAllCancellations());
-    const cancelledRecord = list.find(c => String(c.username).trim().toLowerCase() === username);
+    const cancelledRecord = list.find(c => {
+      const itemUser = String(c.username || '').trim().toLowerCase();
+      const itemUserId = String((c as any).userId || '').trim().toLowerCase();
+      const itemNotes = String(c.notes || '').trim().toLowerCase();
+      return searchKeys.some(k => itemUser === k || itemUser.includes(k) || itemUserId === k || itemNotes.includes(k));
+    });
     
     if (cancelledRecord) {
       return res.json({
@@ -91,11 +124,12 @@ app.get('/api/bot/should-reply', async (req, res) => {
 
 app.get('/api/cancellations/check', async (req, res) => {
   try {
-    const username = String(req.query.username || req.query.userId || '').trim().toLowerCase();
-    if (!username) {
+    const userId = String(req.query.userId || '').trim();
+    const username = String(req.query.username || '').trim();
+    if (!userId && !username) {
       return res.json({ success: true, exists: false, count: 0, nextRound: 1, assignedId: 'PUI-CANCEL-00001' });
     }
-    const userInfo = await getUserCancellationInfo(username);
+    const userInfo = await getUserCancellationInfo(userId, username);
 
     res.json({
       success: true,
@@ -118,17 +152,54 @@ app.post('/api/cancellations', async (req, res) => {
     }
 
     const assignedUsername = String(userId || username || '').trim();
+    let finalId = id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : '';
+    let finalRound = round && Number(round) > 0 ? Number(round) : 1;
 
-    // Lock reference ID and calculate round for this specific LINE user
-    const userInfo = await getUserCancellationInfo(assignedUsername);
-    const finalId = (userInfo.isExistingUser && userInfo.assignedId)
-      ? userInfo.assignedId
-      : (id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : userInfo.assignedId);
-      
-    const finalRound = round && Number(round) > 0 ? Number(round) : userInfo.round;
+    // 1. POST to GAS first — GAS is the Single Source of Truth for ID + round
+    const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
+    try {
+      const gasRes = await fetch(gasWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: assignedUsername,
+          username: assignedUsername || finalId,
+          reason: String(reason).trim(),
+          category: category || 'อื่นๆ',
+          priority: priority || 'กลาง',
+          rating: rating ? Number(rating) : 3,
+          round: finalRound,
+          created_at: new Date().toISOString(),
+        }),
+        redirect: 'follow',
+        signal: AbortSignal.timeout(8000),
+      });
+      if (gasRes.ok) {
+        const gasData = await gasRes.json();
+        if (gasData.success && gasData.id) {
+          // Use GAS authoritative ID & round (overrides client pre-computation)
+          finalId = gasData.id;
+          finalRound = gasData.round || finalRound;
+          console.log('GAS Authoritative ID:', finalId, 'Round:', finalRound);
+        }
+      }
+    } catch (pushErr: any) {
+      console.error('GAS Webhook push warning:', pushErr?.message || pushErr);
+    }
+
+    // 2. Fallback: compute locally if GAS didn't return an ID
+    if (!finalId) {
+      const userInfo = await getUserCancellationInfo(assignedUsername);
+      finalId = userInfo.assignedId;
+      finalRound = userInfo.round;
+    }
+
     const roundText = `รอบที่ ${finalRound}`;
-    const finalNotes = notes ? `${notes} (${roundText})` : roundText;
+    const finalNotes = notes
+      ? (notes.includes('รอบที่') ? roundText : `${notes} (${roundText})`)
+      : roundText;
 
+    // 3. Save to local store as backup
     const saved = saveCancellation({
       id: finalId,
       username: assignedUsername || finalId,
@@ -140,26 +211,6 @@ app.post('/api/cancellations', async (req, res) => {
       rating: rating ? Number(rating) : 3,
       notes: finalNotes,
     });
-
-    // Auto-push directly to Google Apps Script Webhook
-    try {
-      const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-      const gasRes = await fetch(gasWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...saved,
-          round: finalRound,
-          username: assignedUsername || finalId
-        }),
-        redirect: 'follow',
-        signal: AbortSignal.timeout(8000),
-      });
-      const gasText = await gasRes.text();
-      console.log('Google Sheets Webhook Sync Success:', gasRes.status, gasText);
-    } catch (pushErr: any) {
-      console.error('Webhook push warning (continuing to respond):', pushErr?.message || pushErr);
-    }
 
     res.json({ success: true, data: { ...saved, round: finalRound } });
   } catch (err: any) {

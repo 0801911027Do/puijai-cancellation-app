@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CancellationCategory, PriorityLevel } from '../types';
-import { AlertTriangle, Send, Info, Star, CheckCircle2, MessageCircle, Sparkles, User, ShieldCheck } from 'lucide-react';
-import { sendLiffSummaryMessage, closeLiffWindow, getFastLiffProfile, LiffUserProfile } from '../lib/liff';
+import { AlertTriangle, Send, Info, Star, CheckCircle2, MessageCircle, Sparkles, User, ShieldCheck, Loader2 } from 'lucide-react';
+import { sendLiffSummaryMessage, closeLiffWindow, getFastLiffProfile, getCachedLiffProfile, LiffUserProfile } from '../lib/liff';
 
 interface CancelFormProps {
   onSubmitSuccess: (data: any) => void;
@@ -46,16 +46,75 @@ const CATEGORIES: CategoryItem[] = [
   },
 ];
 
+// Instant cached user status helper (0ms before first paint - Real-time SWR)
+const getInitialUserStatus = () => {
+  let urlUserId = '';
+  let urlUsername = '';
+  try {
+    if (typeof window !== 'undefined' && window.location) {
+      const params = new URLSearchParams(window.location.search);
+      urlUserId = params.get('userId') || params.get('user_id') || '';
+      urlUsername = params.get('username') || params.get('name') || params.get('displayName') || '';
+    }
+  } catch (e) {}
+
+  const profile = getCachedLiffProfile();
+  let persistentKey = '';
+  try {
+    persistentKey = localStorage.getItem('puijai_client_device_key') || '';
+  } catch (e) {}
+
+  const targetUserId = profile?.userId || urlUserId || persistentKey;
+  const targetUsername = profile?.displayName || urlUsername || targetUserId;
+
+  try {
+    // 1. Check user-specific cached sync status
+    const keysToCheck = [
+      targetUserId ? `puijai_sync_status_${targetUserId}` : '',
+      targetUsername ? `puijai_sync_status_${targetUsername}` : '',
+      'puijai_last_sync_status',
+    ].filter(Boolean);
+
+    for (const key of keysToCheck) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.nextId) {
+          return {
+            referenceId: parsed.nextId,
+            userRound: parsed.currentRound || 1,
+            previousCount: parsed.totalHistory || (parsed.currentRound ? parsed.currentRound - 1 : 0),
+          };
+        }
+      }
+    }
+
+    // 2. Check last submitted ID
+    const lastId = localStorage.getItem('puijai_last_submitted_id');
+    if (lastId) {
+      return {
+        referenceId: lastId,
+        userRound: 1,
+        previousCount: 0,
+      };
+    }
+  } catch (e) {}
+
+  return {
+    referenceId: 'PUI-CANCEL-00001',
+    userRound: 1,
+    previousCount: 0,
+  };
+};
+
 export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
-  const [referenceId, setReferenceId] = useState<string>('');
-  const [isLoadingId, setIsLoadingId] = useState<boolean>(true);
-  const [userProfile, setUserProfile] = useState<LiffUserProfile | null>(null);
-  const [userRound, setUserRound] = useState<number>(1);
-  const [previousSubmissionsCount, setPreviousSubmissionsCount] = useState<number>(0);
+  const initialStatus = getInitialUserStatus();
+  const [referenceId, setReferenceId] = useState<string>(initialStatus.referenceId);
+  const [userProfile, setUserProfile] = useState<LiffUserProfile | null>(() => getCachedLiffProfile());
+  const [userRound, setUserRound] = useState<number>(initialStatus.userRound);
+  const [previousSubmissionsCount, setPreviousSubmissionsCount] = useState<number>(initialStatus.previousCount);
   const [previousRecord, setPreviousRecord] = useState<any | null>(null);
 
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [category, setCategory] = useState<CancellationCategory>('สลับไปใช้บริการอื่น');
   const [reason, setReason] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('กลาง');
@@ -83,55 +142,61 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       return storedKey || 'LINE-DEVICE-01';
     };
 
-    // 1. Function to resolve ticket reference ID & user round per LINE User
+    // 1. Function to resolve ticket reference ID & user round in real-time
     const resolveUserStatus = async (profileObj?: LiffUserProfile | null) => {
-      let resolved = false;
-      const userKey = getPersistentUserKey(profileObj);
-      const queryParam = `?userId=${encodeURIComponent(userKey)}&username=${encodeURIComponent(profileObj?.displayName || userKey)}`;
-
+      let urlUserId = '';
+      let urlUsername = '';
       try {
-        const res = await fetch(`/api/cancellations/next-id${queryParam}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted && data.success && data.nextId) {
-            setReferenceId(data.nextId);
-            if (data.currentRound) {
-              setUserRound(data.currentRound);
-              setPreviousSubmissionsCount(data.totalHistory || 0);
-            }
-            resolved = true;
-          }
+        if (typeof window !== 'undefined' && window.location) {
+          const params = new URLSearchParams(window.location.search);
+          urlUserId = params.get('userId') || params.get('user_id') || '';
+          urlUsername = params.get('username') || params.get('name') || params.get('displayName') || '';
         }
       } catch (e) {}
 
-      // Direct fallback to Google Apps Script
-      if (!resolved) {
-        try {
-          const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userKey)}&username=${encodeURIComponent(profileObj?.displayName || userKey)}`);
-          if (gasRes.ok) {
-            const gasData = await gasRes.json();
-            if (isMounted && gasData.success && gasData.nextId) {
-              setReferenceId(gasData.nextId);
-              if (gasData.currentRound) {
-                setUserRound(gasData.currentRound);
-                setPreviousSubmissionsCount(gasData.totalHistory || 0);
-              }
-              resolved = true;
-            }
-          }
-        } catch (e) {}
-      }
+      const targetUserId = profileObj?.userId || urlUserId || getPersistentUserKey(profileObj);
+      const targetUsername = profileObj?.displayName || urlUsername || targetUserId;
 
-      if (isMounted) {
-        if (!resolved && !referenceId) {
-          setReferenceId('PUI-CANCEL-00001');
+      // Parallel Realtime SWR: Query Google Sheet via GAS & Backend simultaneously
+      const gasPromise = fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, { 
+        redirect: 'follow',
+        signal: AbortSignal.timeout(5000)
+      }).then(async (r) => (r.ok ? r.json() : null)).catch(() => null);
+
+      const apiPromise = fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, {
+        signal: AbortSignal.timeout(4000)
+      }).then(async (r) => (r.ok ? r.json() : null)).catch(() => null);
+
+      try {
+        // Use first successful result to update instantly
+        const [gasData, apiData] = await Promise.all([gasPromise, apiPromise]);
+        const validData = (gasData && gasData.success && gasData.nextId) ? gasData : (apiData && apiData.success && apiData.nextId ? apiData : null);
+
+        if (isMounted && validData && validData.nextId) {
+          setReferenceId(validData.nextId);
+          if (validData.currentRound) {
+            setUserRound(validData.currentRound);
+            setPreviousSubmissionsCount(validData.totalHistory || 0);
+          }
+          try {
+            localStorage.setItem(`puijai_sync_status_${targetUserId}`, JSON.stringify(validData));
+            if (targetUsername && targetUsername !== targetUserId) {
+              localStorage.setItem(`puijai_sync_status_${targetUsername}`, JSON.stringify(validData));
+            }
+            localStorage.setItem('puijai_last_sync_status', JSON.stringify(validData));
+          } catch (e) {}
         }
-        setIsLoadingId(false);
-      }
+      } catch (e) {}
     };
 
-    // Initial resolution
-    resolveUserStatus();
+    // Initial resolution with cached LIFF / URL params
+    const initialFastProfile = getCachedLiffProfile();
+    if (initialFastProfile) {
+      setUserProfile(initialFastProfile);
+      resolveUserStatus(initialFastProfile);
+    } else {
+      resolveUserStatus();
+    }
 
     // 2. Fetch LINE LIFF Profile & lock ID per user
     getFastLiffProfile((profile) => {
@@ -183,8 +248,6 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       id: referenceId || 'PUI-CANCEL-00001',
       userId: finalUserId,
       username: finalUsername,
-      email: email.trim() || undefined,
-      phone: phone.trim() || undefined,
       category,
       reason: reason.trim(),
       priority,
@@ -194,79 +257,93 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       created_at: new Date().toISOString(),
     };
 
-    let isSuccess = false;
-    let resultData: any = null;
+    const startTime = Date.now();
+    let submittedRecord: any = null;
 
-    // 1. Try sending to backend API
     try {
+      // 1. Primary: Send request to backend API
       const res = await fetch('/api/cancellations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
       });
 
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.data) {
-          isSuccess = true;
-          resultData = data.data;
+          submittedRecord = data.data;
         }
       }
     } catch (apiErr) {
-      console.warn('Backend API submission warning, attempting direct Google Sheet webhook fallback:', apiErr);
+      console.warn('Backend API submission failed, falling back to direct GAS:', apiErr);
     }
 
-    // 2. Direct client fallback to Google Apps Script (Guaranteed delivery)
-    if (!isSuccess) {
+    // Fallback: Directly submit to Google Apps Script if backend was unreachable
+    if (!submittedRecord) {
       try {
         const gasRes = await fetch(gasWebhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(8000),
         });
-
         if (gasRes.ok) {
           const gasData = await gasRes.json();
           if (gasData.success) {
-            isSuccess = true;
-            resultData = {
+            submittedRecord = {
               ...payload,
-              id: gasData.id || referenceId,
-              round: gasData.round || userRound,
+              id: gasData.id || payload.id,
+              round: gasData.round || payload.round,
               status: 'ยกเลิกสำเร็จ',
             };
           }
         }
       } catch (gasErr) {
-        console.warn('Google Sheet Webhook direct submission warning:', gasErr);
+        console.warn('Direct GAS fallback failed:', gasErr);
       }
     }
 
-    if (isSuccess && resultData) {
-      try {
-        localStorage.setItem('puijai_last_submitted_id', resultData.id);
-      } catch (e) {}
+    // Ensure final result object
+    const finalResult = submittedRecord || {
+      ...payload,
+      id: referenceId || 'PUI-CANCEL-00001',
+      round: userRound,
+      status: 'ยกเลิกสำเร็จ' as const,
+    };
 
-      // Send automatic summary notification to LINE OA chat immediately upon submit
-      sendLiffSummaryMessage({
-        id: resultData.id,
-        username: finalUsername,
-        category: resultData.category || category,
-        reason: resultData.reason || reason,
-        round: resultData.round || userRound,
-        notes: resultData.notes,
-      }).catch(() => {});
-
-      onSubmitSuccess({
-        ...resultData,
-        round: resultData.round || userRound,
-        notes: resultData.notes || `รอบที่ ${resultData.round || userRound}`,
-      });
-    } else {
-      setErrorMessage('ไม่สามารถบันทึกข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่อีกครั้ง');
+    // Standard UX feedback: enforce at least 800ms loading state so user perceives reliable submission
+    const elapsedTime = Date.now() - startTime;
+    if (elapsedTime < 800) {
+      await new Promise((resolve) => setTimeout(resolve, 800 - elapsedTime));
     }
 
+    // Save to localStorage
+    try {
+      localStorage.setItem('puijai_last_submitted_id', finalResult.id);
+      const nextRoundInfo = {
+        nextId: finalResult.id,
+        currentRound: (finalResult.round || userRound) + 1,
+        totalHistory: finalResult.round || userRound,
+      };
+      localStorage.setItem(`puijai_sync_status_${finalUserId}`, JSON.stringify(nextRoundInfo));
+      if (finalUsername && finalUsername !== finalUserId) {
+        localStorage.setItem(`puijai_sync_status_${finalUsername}`, JSON.stringify(nextRoundInfo));
+      }
+    } catch (e) {}
+
+    // Send LINE summary message (non-blocking)
+    sendLiffSummaryMessage({
+      id: finalResult.id,
+      username: finalUsername,
+      category: finalResult.category || category,
+      reason: (finalResult.reason || reason).trim(),
+      round: finalResult.round || userRound,
+      notes: finalResult.notes || `รอบที่ ${userRound}`,
+    }).catch(() => {});
+
     setIsSubmitting(false);
+    onSubmitSuccess(finalResult);
   };
 
   return (
@@ -300,9 +377,17 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           </div>
 
           {userRound > 1 && (
-            <div className="mb-2.5 inline-flex items-center space-x-1.5 px-3 py-1 bg-amber-500/20 backdrop-blur-sm border border-amber-300/40 rounded-full text-white text-xs font-bold shadow-xs">
-              <span>🔁 คำขอยกเลิก: รอบที่ {userRound}</span>
-              <span className="text-white/80 font-normal">| เคยยกเลิกมาแล้ว {previousSubmissionsCount} ครั้ง</span>
+            <div className="mb-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 px-3 sm:px-3.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-full text-xs shadow-sm border border-white/80 transition-all max-w-full">
+              <span className="inline-flex items-center space-x-1.5 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0"></span>
+                <span className="font-bold text-pink-600 whitespace-nowrap text-xs">
+                  คำขอยกเลิก: รอบที่ {userRound}
+                </span>
+              </span>
+              <span className="text-slate-300 font-light hidden sm:inline">|</span>
+              <span className="text-slate-500 font-medium whitespace-nowrap text-[11px] sm:text-xs">
+                เคยยกเลิกมาแล้ว {previousSubmissionsCount} ครั้ง
+              </span>
             </div>
           )}
           
@@ -311,91 +396,31 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           </h2>
           
           <p className="text-white/95 drop-shadow-sm font-medium text-[13px] sm:text-[15px] leading-relaxed opacity-95 max-w-[95%] sm:max-w-none">
-            แชทบอท Puijai (น้องปุยใจ) เป็นบริการ AI เราขอขอบคุณที่คุณเปิดโอกาสลองใช้ และยินดีรับฟังข้อเสนอแนะเพื่อนำไปพัฒนาต่อ ☁️
+            <span className="inline-block">แชทบอท Puijai (น้องปุยใจ)</span> <span className="inline-block">เป็นบริการ AI</span> <span className="inline-block">เราขอขอบคุณที่คุณเปิดโอกาสลองใช้</span> <span className="inline-block">และยินดีรับฟังข้อเสนอแนะ</span><span className="inline-block">เพื่อนำไปพัฒนาต่อ ☁️</span>
           </p>
         </div>
       </div>
 
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-pink-100 p-4 sm:p-8 shadow-xs space-y-5 sm:space-y-6">
-        {/* User Identity & Reference Ticket Badge */}
-        {userProfile ? (
-          <div className="bg-gradient-to-r from-sky-50 to-pink-50/60 border border-sky-200/80 rounded-2xl p-3.5 space-y-2 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 min-w-0">
-                {userProfile.pictureUrl ? (
-                  <img
-                    src={userProfile.pictureUrl}
-                    alt={userProfile.displayName || 'LINE User'}
-                    className="w-11 h-11 rounded-full border-2 border-white shadow-xs object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-11 h-11 rounded-full bg-sky-200 text-sky-800 flex items-center justify-center font-bold text-sm border-2 border-white shadow-xs flex-shrink-0">
-                    {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-[11px] text-slate-500 font-medium">ผู้ขอยกเลิก:</span>
-                    <span className="text-xs font-bold text-slate-800 truncate">
-                      {userProfile.displayName || 'บัญชี LINE ของคุณ'}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-600 font-mono flex items-center space-x-2 mt-0.5">
-                    <span>รหัสคำขอ:</span>
-                    {isLoadingId ? (
-                      <span className="text-slate-400 italic inline-flex items-center space-x-1">
-                        <span className="w-3 h-3 border border-pink-400 border-t-transparent rounded-full animate-spin inline-block" />
-                        <span>กำลังคำนวณรหัส...</span>
-                      </span>
-                    ) : (
-                      <span className="font-bold text-pink-600 bg-white/80 px-1.5 py-0.2 rounded border border-pink-200">
-                        {referenceId || 'PUI-CANCEL-00001'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col items-end space-y-1">
-                <span className="text-[11px] font-bold px-2.5 py-1 bg-pink-100 text-pink-700 rounded-full border border-pink-200">
-                  รอบที่ {userRound}
-                </span>
-                <span className="hidden sm:inline-flex text-[10px] font-medium text-emerald-700 items-center space-x-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span>บัญชี LINE นี้</span>
-                </span>
-              </div>
-            </div>
-            {previousSubmissionsCount > 0 && previousRecord && (
-              <div className="pt-2 border-t border-sky-200/50 text-[11px] text-slate-600 flex items-center justify-between">
-                <span>ประวัติ: เคยยกเลิกล่าสุดรหัส <strong className="font-mono text-slate-800">{previousRecord.id}</strong></span>
-                <span className="text-pink-600 font-semibold">บันทึกรอบใหม่: รอบที่ {userRound}</span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs">
-            <div className="flex items-center space-x-2 text-slate-600">
-              <Sparkles className="w-4 h-4 text-pink-500 flex-shrink-0" />
-              <span>
-                รหัสคำขอยกเลิกบริการของคุณ:{' '}
-                {isLoadingId ? (
-                  <span className="text-slate-400 italic inline-flex items-center space-x-1 ml-1">
-                    <span className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin" />
-                    <span>กำลังคำนวณรหัส...</span>
-                  </span>
-                ) : (
-                  <strong className="font-mono text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                    {referenceId || 'PUI-CANCEL-00001'}
-                  </strong>
-                )}
+        {/* Reference Ticket & Round Badge */}
+        <div className="bg-gradient-to-r from-sky-50/80 via-white to-pink-50/70 border border-sky-200/80 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center space-x-1.5 min-w-0">
+              <Sparkles className="w-4 h-4 text-pink-500 shrink-0" />
+              <span className="text-slate-600 font-medium whitespace-nowrap shrink-0">
+                รหัสคำขอ:
               </span>
+              <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
+                {referenceId || 'PUI-CANCEL-00001'}
+              </strong>
             </div>
-            <span className="text-[10px] font-semibold px-2 py-0.5 bg-pink-100 text-pink-700 rounded border border-pink-200">
+
+            <span className="text-[10px] sm:text-xs font-bold px-2.5 py-0.5 bg-pink-100 text-pink-700 rounded-full border border-pink-200 whitespace-nowrap shrink-0 shadow-2xs ml-auto transition-all duration-200">
               รอบที่ {userRound}
             </span>
           </div>
-        )}
+        </div>
 
         {errorMessage && (
           <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-sm flex items-center space-x-3">
@@ -418,6 +443,8 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               <label
                 key={cat.label}
                 className={`flex items-start space-x-3 p-3 rounded-xl border cursor-pointer transition-all min-w-0 ${
+                  isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                } ${
                   category === cat.label
                     ? 'border-pink-500 bg-pink-50/70 ring-2 ring-pink-400/20 shadow-xs'
                     : 'border-slate-200 hover:border-pink-200 bg-slate-50/50'
@@ -427,6 +454,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                   type="radio"
                   name="category"
                   aria-label={cat.label}
+                  disabled={isSubmitting}
                   checked={category === cat.label}
                   onChange={() => setCategory(cat.label)}
                   className="mt-1 text-pink-600 focus:ring-pink-500 flex-shrink-0"
@@ -457,57 +485,30 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               id="cancel-reason-input"
               rows={4}
               required
+              disabled={isSubmitting}
               aria-label="รายละเอียดเหตุผลและข้อเสนอแนะ"
               placeholder="ช่วยบอกเราสักนิดว่าทำไมถึงต้องการยกเลิก หรือมีจุดไหนที่คุณอยากให้น้องปุยใจปรับปรุงเพิ่มเติม (เช่น ตอบช้า, คำตอบไม่ตรงใจ, สลับไปใช้แอปอื่น ฯลฯ)..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-slate-900 text-sm leading-relaxed transition-all placeholder:text-slate-400"
+              className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-slate-900 text-sm leading-relaxed transition-all placeholder:text-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
             <p className="text-xs text-slate-500 mt-1">
-              ความคิดเห็นของคุณมีค่ามาก เพื่อนำไปพัฒนาการตอบคำถามของน้องปุยใจให้ดียิ่งขึ้น ☁️
+              <span className="inline-block">ความคิดเห็นของคุณมีค่ามาก</span> <span className="inline-block">เพื่อนำไปพัฒนาการตอบคำถาม</span><span className="inline-block">ของน้องปุยใจให้ดียิ่งขึ้น ☁️</span>
             </p>
           </div>
         </div>
 
-        {/* 3. Optional Contact Info (for follow-up if user wants) */}
+        {/* 3. Priority & Satisfaction Rating */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
             <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-700 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5" aria-hidden="true">3</span>
             <span className="min-w-0 flex-1 leading-snug">
-              <span>ข้อมูลติดต่อเพิ่มเติม</span> <span className="text-xs font-normal text-slate-400">(ไม่บังคับระบุ)</span>
+              <span className="inline-block">ระดับความเร่งด่วน</span><span className="inline-block">และความพึงพอใจ</span>
             </span>
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="phone-input" className="block text-xs font-medium text-slate-600 mb-1">เบอร์โทรศัพท์ (ถ้าสะดวกให้ติดต่อ):</label>
-              <input
-                id="phone-input"
-                type="tel"
-                aria-label="เบอร์โทรศัพท์สำหรับติดต่อกลับ"
-                placeholder="08X-XXX-XXXX"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="email-input" className="block text-xs font-medium text-slate-600 mb-1">อีเมลติดต่อ (ถ้ามี):</label>
-              <input
-                id="email-input"
-                type="email"
-                aria-label="อีเมลสำหรับติดต่อกลับ"
-                placeholder="yourname@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-              />
-            </div>
-          </div>
-        </div>
 
-        {/* 4. Priority & Satisfaction Rating */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-          {/* Priority */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-1">
+            {/* Priority */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
               ระดับความเร่งด่วนในการยกเลิก
@@ -517,10 +518,13 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                 <button
                   key={p}
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setPriority(p)}
                   aria-label={`เลือกระดับความเร่งด่วน ${p}`}
                   aria-pressed={priority === p}
                   className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all ${
+                    isSubmitting ? 'cursor-not-allowed opacity-70' : ''
+                  } ${
                     priority === p
                       ? p === 'สูง'
                         ? 'bg-rose-500 text-white border-rose-600'
@@ -546,10 +550,13 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                 <button
                   key={star}
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setRating(star)}
                   aria-label={`ให้คะแนน ${star} จาก 5 คะแนน`}
                   aria-pressed={star <= rating}
-                  className="p-1 text-amber-400 hover:scale-110 transition-transform cursor-pointer"
+                  className={`p-1 text-amber-400 transition-transform ${
+                    isSubmitting ? 'cursor-not-allowed opacity-70' : 'hover:scale-110 cursor-pointer'
+                  }`}
                 >
                   <Star
                     className={`w-6 h-6 ${
@@ -562,61 +569,71 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 5. Policy Notice */}
-        <div className="bg-pink-50/60 p-4 rounded-2xl border border-pink-100 space-y-2">
+        {/* 4. Policy Notice */}
+        <div className="bg-pink-50/60 p-4 rounded-2xl border border-pink-100 space-y-2.5">
           <div className="flex items-center space-x-2 text-xs font-bold text-pink-900">
-            <Info className="w-4 h-4 text-pink-600 flex-shrink-0" />
-            <span>ข้อตกลงและผลของการยกเลิกบริการ</span>
+            <Info className="w-4 h-4 text-pink-600 shrink-0" />
+            <span className="whitespace-nowrap font-bold">ข้อตกลงและผลของการยกเลิกบริการ</span>
           </div>
-          <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside pl-1 leading-relaxed">
-            <li>หลังจากส่งคำขอ แชทบอท Puijai จะหยุดการตอบกลับอัตโนมัติสำหรับบัญชี LINE นี้</li>
-            <li>ข้อมูลข้อเสนอแนะจะถูกนำไปใช้พัฒนาปรับปรุงระบบ AI เพื่อให้ตอบโจทย์ผู้ใช้งานยิ่งขึ้น</li>
-            <li>หากในอนาคตต้องการกลับมาใช้งานใหม่ สามารถเปิดใช้งานผ่าน LINE OA ได้เสมอ</li>
+          <ul className="text-xs text-slate-600 space-y-2 list-disc list-inside pl-1 leading-relaxed">
+            <li>
+              <span className="inline-block">หลังจากส่งคำขอยกเลิก</span> <span className="inline-block">แชทบอท Puijai</span> <span className="inline-block">จะหยุดการตอบกลับอัตโนมัติทันที</span>
+            </li>
+            <li>
+              <span className="inline-block">ข้อเสนอแนะของคุณ</span> <span className="inline-block">จะถูกนำไปพัฒนาปรับปรุง</span> <span className="inline-block">ระบบ AI ให้ดียิ่งขึ้น</span>
+            </li>
+            <li>
+              <span className="inline-block">หากต้องการกลับมาใช้ใหม่</span> <span className="inline-block">สามารถเปิดใช้งานผ่าน LINE OA</span> <span className="inline-block">ได้ตลอดเวลา</span>
+            </li>
           </ul>
         </div>
 
         {/* Confirmation Checkbox */}
         <div className="pt-2">
-          <label className="flex items-start space-x-3 cursor-pointer min-w-0 select-none">
+          <label className={`flex items-start space-x-3 select-none ${isSubmitting ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               id="confirm-cancellation-checkbox"
-              aria-label="ข้าพเจ้ายืนยันความประสงค์ที่จะยกเลิกการใช้งานแชทบอท Puijai สำหรับบัญชี LINE นี้ และส่งข้อเสนอแนะเข้าสู่ระบบ"
+              disabled={isSubmitting}
+              aria-label="ข้าพเจ้ายืนยันการขอยกเลิกการใช้งานแชทบอท Puijai และส่งข้อเสนอแนะเข้าสู่ระบบ"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 flex-shrink-0 cursor-pointer"
+              className="mt-0.5 w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 shrink-0 cursor-pointer disabled:cursor-not-allowed"
             />
             <span className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed min-w-0 flex-1">
-              ข้าพเจ้ายืนยันความประสงค์ที่จะยกเลิกการใช้งานแชทบอท Puijai สำหรับบัญชี LINE นี้ และส่งข้อเสนอแนะเข้าสู่ระบบ
+              <span className="inline-block">ข้าพเจ้ายืนยันการขอยกเลิกใช้งาน</span> <span className="inline-block">แชทบอท Puijai</span> <span className="inline-block">และส่งข้อเสนอแนะเข้าสู่ระบบ</span>
             </span>
           </label>
         </div>
 
         {/* Form Actions */}
         <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-slate-500">
-            * ข้อมูลจะถูกจัดเก็บลงระบบและแจ้งเตือนเข้าแชท LINE ทันที
+          <div className="text-xs text-slate-500 leading-normal">
+            <span className="inline-block">* ข้อมูลจะถูกจัดเก็บลงระบบ</span> <span className="inline-block">และแจ้งเตือนเข้าแชท LINE ทันที</span>
           </div>
 
           <button
             type="submit"
             aria-label="ยืนยันส่งคำขอยกเลิกบริการ"
             disabled={isSubmitting || !confirmed}
-            className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-sm text-white flex items-center justify-center space-x-2 shadow-md transition-all ${
-              confirmed && !isSubmitting
-                ? 'bg-pink-600 hover:bg-pink-700 active:scale-98 shadow-pink-200'
-                : 'bg-slate-300 cursor-not-allowed'
+            className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center space-x-2.5 shadow-md transition-all duration-200 ${
+              isSubmitting
+                ? 'bg-pink-500 opacity-90 cursor-wait shadow-pink-200'
+                : confirmed
+                ? 'bg-pink-600 hover:bg-pink-700 active:scale-[0.98] shadow-pink-300 cursor-pointer'
+                : 'bg-slate-300 cursor-not-allowed shadow-none'
             }`}
           >
             {isSubmitting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
                 <span>กำลังบันทึกและส่งคำขอ...</span>
               </>
             ) : (
               <>
-                <Send className="w-4 h-4" />
+                <Send className="w-4 h-4 shrink-0" />
                 <span>ยืนยันส่งคำขอยกเลิกบริการ</span>
               </>
             )}

@@ -36,21 +36,23 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
           </p>
         </div>
 
-        <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto break-words">
-          คำขอยกเลิกบริการแชทบอท <span className="font-bold text-slate-800">"Puijai"</span> รหัสคำขอ <span className="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded border border-pink-200 break-all">{cancellationData.id}</span> ถูกบันทึกเข้าสู่ฐานข้อมูลเรียบร้อยแล้ว แชทบอทจะหยุดการตอบกลับอัตโนมัติสำหรับบัญชีของคุณ หากในอนาคตต้องการกลับมาใช้งานใหม่ น้องปุยใจยินดีต้อนรับเสมอครับ ☁️
+        <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
+          <span className="inline-block">คำขอยกเลิกบริการแชทบอท</span> <span className="font-bold text-slate-800 inline-block">"Puijai"</span> <span className="inline-block">รหัสคำขอ</span> <span className="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded border border-pink-200 whitespace-nowrap inline-block">{cancellationData.id}</span> <span className="inline-block">ถูกบันทึกเข้าสู่ฐานข้อมูลเรียบร้อยแล้ว</span> <span className="inline-block">แชทบอทจะหยุดการตอบกลับอัตโนมัติ</span><span className="inline-block">สำหรับบัญชีของคุณ</span> <span className="inline-block">หากในอนาคตต้องการกลับมาใช้งานใหม่</span> <span className="inline-block">น้องปุยใจยินดีต้อนรับเสมอครับ ☁️</span>
         </p>
 
         {/* Cancellation Summary Ticket Box */}
         <div className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200 text-left space-y-3 text-xs overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2 min-w-0">
-            <span className="text-slate-500 font-semibold uppercase tracking-wider flex-shrink-0">รหัสอ้างอิงคำขอ</span>
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 gap-2 flex-wrap sm:flex-nowrap">
+            <span className="text-slate-500 font-semibold uppercase tracking-wider whitespace-nowrap shrink-0">
+              รหัสอ้างอิงคำขอ
+            </span>
+            <div className="flex items-center space-x-2 shrink-0">
               {cancellationData.notes && cancellationData.notes.includes('รอบที่') && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-100 text-pink-700 border border-pink-200">
-                  {cancellationData.notes}
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-pink-100 text-pink-700 border border-pink-200 whitespace-nowrap shrink-0 shadow-2xs">
+                  {cancellationData.notes.match(/รอบที่\s*\d+/)?.[0] || 'รอบที่ 1'}
                 </span>
               )}
-              <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 break-all">
+              <span className="font-mono font-bold text-slate-800 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 whitespace-nowrap shrink-0 shadow-2xs text-xs sm:text-sm tracking-tight">
                 {cancellationData.id}
               </span>
             </div>
@@ -58,18 +60,18 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
             <div className="flex items-center space-x-1.5 min-w-0">
-              <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-              <span className="break-words">{new Date(cancellationData.created_at).toLocaleString('th-TH')}</span>
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate">{new Date(cancellationData.created_at).toLocaleString('th-TH')}</span>
             </div>
             <div className="flex items-center space-x-1.5 min-w-0">
-              <Tag className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-              <span className="font-semibold text-slate-800 break-words">{cancellationData.category}</span>
+              <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="font-semibold text-slate-800 truncate">{cancellationData.category}</span>
             </div>
           </div>
 
           <div className="pt-2 border-t border-slate-200">
             <span className="text-slate-500 font-semibold block mb-1">เหตุผลที่ระบุ:</span>
-            <p className="text-slate-800 italic bg-white p-2.5 rounded-lg border border-slate-200 break-words leading-relaxed">
+            <p className="text-slate-800 italic bg-white p-2.5 rounded-lg border border-slate-200 break-words leading-relaxed text-xs">
               "{cancellationData.reason}"
             </p>
           </div>

@@ -248,17 +248,42 @@ function doGet(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = getPuijaiSheet(ss);
     var data = sheet.getDataRange().getValues();
-    
+
+    // 0. Endpoint รีเซ็ตระบบและล้างข้อมูลทั้งหมดเพื่อเริ่มรันใหม่ (Reset System)
+    if (e && e.parameter && (e.parameter.action === 'reset' || e.parameter.action === 'clearAll')) {
+      sheet.clear();
+      setupSheetHeaders(sheet);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'รีเซ็ตข้อมูลและล้างตารางทั้งหมดเรียบร้อยแล้ว พร้อมเริ่มรันใหม่ตั้งแต่ PUI-CANCEL-00001 (รอบที่ 1)',
+        nextId: 'PUI-CANCEL-00001',
+        round: 1
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     // 1. Endpoint คำนวณรหัสและรอบของผู้ใช้ LINE (nextId / checkUser)
     if (e && e.parameter && (e.parameter.action === 'nextId' || e.parameter.action === 'checkUser')) {
-      var checkUser = String(e.parameter.userId || e.parameter.username || e.parameter.id || '').trim();
+      var rawUserId = String(e.parameter.userId || '').trim().toLowerCase();
+      var rawUsername = String(e.parameter.username || '').trim().toLowerCase();
+      var rawId = String(e.parameter.id || '').trim().toLowerCase();
+
+      var searchKeys = [];
+      [rawUserId, rawUsername, rawId].forEach(function(k) {
+        if (k && k !== 'pui-cancel-00001' && k !== 'line-device-01') {
+          searchKeys.push(k);
+          var stripped = k.replace(/^\[uid:/i, '').replace(/\[|\]/g, '').trim();
+          if (stripped && searchKeys.indexOf(stripped) === -1) searchKeys.push(stripped);
+        }
+      });
+
       var foundUserId = null;
       var foundCount = 0;
       var maxSeq = 0;
 
       for (var r = 1; r < data.length; r++) {
         var cellId = String(data[r][0] || '').trim();
-        var cellNotes = String(data[r][7] || '').trim();
+        var cellNotes = String(data[r][7] || '').trim().toLowerCase();
+        var cellIdLower = cellId.toLowerCase();
 
         var match = cellId.match(/PUI-CANCEL-(\d+)/i);
         if (match) {
@@ -268,8 +293,16 @@ function doGet(e) {
           }
         }
 
-        if (checkUser && checkUser !== 'PUI-CANCEL-00001') {
-          if (cellNotes.indexOf(checkUser) !== -1 || cellId === checkUser) {
+        if (searchKeys.length > 0) {
+          var isRowMatch = false;
+          for (var sk = 0; sk < searchKeys.length; sk++) {
+            var key = searchKeys[sk];
+            if (key && (cellNotes.indexOf(key) !== -1 || cellIdLower === key || cellIdLower.indexOf(key) !== -1)) {
+              isRowMatch = true;
+              break;
+            }
+          }
+          if (isRowMatch) {
             foundCount++;
             if (!foundUserId && cellId) {
               foundUserId = cellId;
@@ -278,10 +311,10 @@ function doGet(e) {
         }
       }
 
-      if (foundUserId) {
+      if (foundUserId || foundCount > 0) {
         return ContentService.createTextOutput(JSON.stringify({
           success: true,
-          nextId: foundUserId,
+          nextId: foundUserId || 'PUI-CANCEL-' + ('00000' + Math.max(maxSeq + 1, 1)).slice(-5),
           isExistingUser: true,
           currentRound: foundCount + 1,
           totalHistory: foundCount
@@ -522,3 +555,28 @@ function fixSheetRounds() {
   
   Logger.log('อัปเดตหมายเหตุรอบตามรหัสอ้างอิงสำเร็จแล้ว ' + updatedCount + ' แถว');
 }
+
+/**
+ * 6. ฟังก์ชันล้างข้อมูลและรีเซ็ตระบบเพื่อเริ่มต้นรันใหม่ (Reset System)
+ * - ลบข้อมูลคำขอทดสอบทั้งหมดออก (แถวที่ 2 ลงไป)
+ * - สร้างหัวตาราง (Header) 8 คอลัมน์ใหม่ให้สวยงามและพร้อมใช้งาน
+ * - เมื่อรันคำขอยกเลิกถัดไป ระบบจะเริ่มรหัสแรกที่ PUI-CANCEL-00001 (รอบที่ 1) ทันที
+ * 
+ * วิธีใช้:
+ * 1. ในหน้า Apps Script ให้เลือกฟังก์ชัน "resetSheetData" จากดรอปดาวน์ด้านบน
+ * 2. กดปุ่ม "เรียกใช้ (Run)" 
+ */
+function resetSheetData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = getPuijaiSheet(ss);
+  
+  // ล้างเนื้อหาและการจัดรูปแบบทั้งหมดในชีต
+  sheet.clear();
+  
+  // สร้างหัวตารางใหม่อัตโนมัติ
+  setupSheetHeaders(sheet);
+  
+  Logger.log('✅ ล้างข้อมูลและรีเซ็ตแผ่นงานเรียบร้อยแล้ว!');
+  Logger.log('🚀 พร้อมเริ่มรันใหม่ตั้งแต่รหัส: PUI-CANCEL-00001 (รอบที่ 1)');
+}
+
