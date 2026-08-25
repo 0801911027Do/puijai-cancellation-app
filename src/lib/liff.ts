@@ -251,3 +251,38 @@ export function closeLiffWindow() {
   window.location.href = 'https://line.me/R/ti/p/@123xuwni';
 }
 
+/**
+ * Get the user's LINE App Version (e.g. "14.2.0") safely from LIFF or URL search params
+ */
+export function getLineAppVersion(url?: string): string | null {
+  try {
+    if (liffInitialized && liff.getLineVersion) {
+      const ver = liff.getLineVersion();
+      if (ver) return ver;
+    }
+  } catch (e) {}
+
+  try {
+    const targetUrl = url || (typeof window !== 'undefined' ? window.location.href : '');
+    if (targetUrl) {
+      const parsed = new URL(targetUrl, typeof window !== 'undefined' ? window.location.origin : 'https://localhost');
+      return parsed.searchParams.get('lineAppVersion') || parsed.searchParams.get('line_version');
+    }
+  } catch (e) {}
+
+  return null;
+}
+
+/**
+ * Get full LIFF device and client context
+ */
+export function getLiffContext() {
+  return {
+    isInClient: isInLiffClient(),
+    lineAppVersion: getLineAppVersion(),
+    os: liffInitialized ? liff.getOS?.() : null,
+    language: liffInitialized ? liff.getLanguage?.() : (typeof navigator !== 'undefined' ? navigator.language : 'th'),
+    liffVersion: liffInitialized ? liff.getVersion?.() : null,
+  };
+}
+
