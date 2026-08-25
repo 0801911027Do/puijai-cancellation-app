@@ -50,8 +50,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchCancellations();
-
     const syncViewWithUrl = () => {
       const path = window.location.pathname;
       const search = window.location.search;
@@ -66,6 +64,13 @@ export default function App() {
     window.addEventListener('popstate', syncViewWithUrl);
     return () => window.removeEventListener('popstate', syncViewWithUrl);
   }, []);
+
+  // Only fetch cancellations when admin view is active
+  useEffect(() => {
+    if (currentView === 'admin' && isAdminAuthenticated) {
+      fetchCancellations();
+    }
+  }, [currentView, isAdminAuthenticated]);
 
   const changeView = (view: 'user' | 'admin') => {
     setCurrentView(view);

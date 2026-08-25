@@ -357,11 +357,18 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
         <div className="relative z-10 flex flex-col items-center sm:items-start text-center sm:text-left">
           {/* Puijai Logo Above Title */}
           <div className="mb-3.5 relative inline-flex">
-            <img
-              src="/puijai-logo.jpg"
-              alt="Puijai Logo"
-              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border-2 border-white/90 shadow-lg shadow-pink-900/15 object-cover ring-4 ring-white/30 hover:scale-105 transition-transform duration-300"
-            />
+            <picture>
+              <source srcSet="/puijai-logo.webp" type="image/webp" />
+              <img
+                src="/puijai-logo.jpg"
+                alt="Puijai Logo"
+                width={80}
+                height={80}
+                loading="eager"
+                decoding="async"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl border-2 border-white/90 shadow-lg shadow-pink-900/15 object-cover ring-4 ring-white/30 hover:scale-105 transition-transform duration-300"
+              />
+            </picture>
             <span className="absolute -bottom-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-emerald-400 border-2 border-white rounded-full flex items-center justify-center shadow-xs" title="Puijai Online">
               <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full"></span>
             </span>
