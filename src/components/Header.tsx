@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <Sparkles className="w-3 h-3 text-sky-500 flex-shrink-0" /> AI Chatbot
               </span>
             </div>
-            <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-slate-700 font-medium leading-relaxed">
               <span className="inline-block">ระบบศูนย์ขอยกเลิกการใช้งาน</span>
             </p>
           </div>

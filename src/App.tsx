@@ -158,7 +158,7 @@ export default function App() {
       </main>
 
       {/* App Footer */}
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-700 font-medium">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="leading-relaxed text-center sm:text-left">
             <span className="inline-block">© 2026 Puijai -</span> <span className="inline-block">ระบบศูนย์ขอยกเลิกการใช้งาน</span>

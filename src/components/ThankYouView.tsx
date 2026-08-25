@@ -43,7 +43,7 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
         {/* Cancellation Summary Ticket Box */}
         <div className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200 text-left space-y-3 text-xs overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 gap-2 flex-wrap sm:flex-nowrap">
-            <span className="text-slate-500 font-semibold uppercase tracking-wider whitespace-nowrap shrink-0">
+            <span className="text-slate-700 font-bold uppercase tracking-wider whitespace-nowrap shrink-0">
               รหัสอ้างอิงคำขอ
             </span>
             <div className="flex items-center space-x-2 shrink-0">
@@ -58,20 +58,20 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-800 font-medium">
             <div className="flex items-center space-x-1.5 min-w-0">
-              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
               <span className="truncate">{new Date(cancellationData.created_at).toLocaleString('th-TH')}</span>
             </div>
             <div className="flex items-center space-x-1.5 min-w-0">
-              <Tag className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="font-semibold text-slate-800 truncate">{cancellationData.category}</span>
+              <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="font-semibold text-slate-900 truncate">{cancellationData.category}</span>
             </div>
           </div>
 
           <div className="pt-2 border-t border-slate-200">
-            <span className="text-slate-500 font-semibold block mb-1">เหตุผลที่ระบุ:</span>
-            <p className="text-slate-800 italic bg-white p-2.5 rounded-lg border border-slate-200 break-words leading-relaxed text-xs">
+            <span className="text-slate-800 font-bold block mb-1">เหตุผลที่ระบุ:</span>
+            <p className="text-slate-900 italic bg-white p-2.5 rounded-lg border border-slate-200 break-words leading-relaxed text-xs">
               "{cancellationData.reason}"
             </p>
           </div>
