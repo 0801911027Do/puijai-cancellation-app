@@ -47,45 +47,73 @@ app.post('/api/cancellations/sync-sheets', async (req, res) => {
   }
 });
 
+// Fast in-memory Google Sheets state cache (SWR)
+interface GasNextIdCache {
+  data: {
+    success: boolean;
+    nextId: string;
+    isExistingUser: boolean;
+    currentRound: number;
+    totalHistory: number;
+  };
+  timestamp: number;
+}
+const gasUserCache = new Map<string, GasNextIdCache>();
+let gasGlobalLatestNextId = 'PUI-CANCEL-00002';
+
 app.get('/api/cancellations/next-id', async (req, res) => {
   try {
     const userId = String(req.query.userId || '').trim();
     const username = String(req.query.username || '').trim();
+    const cacheKey = `${userId}::${username}`;
 
-    res.setHeader('Cache-Control', 'private, max-age=30');
+    res.setHeader('Cache-Control', 'private, max-age=10');
 
-    // 1. Primary: Query GAS with fast timeout (max 1500ms to avoid chaining delays)
+    // 1. Check in-memory SWR cache (0ms instant response)
+    const cached = gasUserCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && (now - cached.timestamp < 15000)) {
+      return res.json(cached.data);
+    }
+
+    // 2. Query GAS with fast timeout (Single Source of Truth)
     const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
     try {
       const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`, {
         redirect: 'follow',
-        signal: AbortSignal.timeout(1500),
+        signal: AbortSignal.timeout(2000),
       });
       if (gasRes.ok) {
         const gasData = await gasRes.json();
         if (gasData.success && gasData.nextId) {
-          return res.json({
+          const resultData = {
             success: true,
             nextId: gasData.nextId,
             isExistingUser: gasData.isExistingUser || false,
             currentRound: gasData.currentRound || 1,
             totalHistory: gasData.totalHistory || 0
-          });
+          };
+          gasGlobalLatestNextId = gasData.nextId;
+          gasUserCache.set(cacheKey, { data: resultData, timestamp: now });
+          return res.json(resultData);
         }
       }
     } catch (gasErr) {
       // Fast fallback on timeout or error
     }
 
-    // 2. Fallback: Instant local computation (0-2ms)
+    // 3. Fallback: Instant local computation
     const userInfo = await getUserCancellationInfo(userId, username);
-    res.json({
+    const fallbackId = userInfo.assignedId || gasGlobalLatestNextId;
+    const fallbackResult = {
       success: true,
-      nextId: userInfo.assignedId,
+      nextId: fallbackId,
       isExistingUser: userInfo.isExistingUser,
       currentRound: userInfo.round,
       totalHistory: userInfo.totalHistory
-    });
+    };
+    gasUserCache.set(cacheKey, { data: fallbackResult, timestamp: now });
+    res.json(fallbackResult);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -89,7 +89,16 @@ const getInitialUserStatus = () => {
       }
     }
 
-    // 2. Check last submitted ID
+    // 2. Check global next ID or last submitted ID
+    const globalNextId = localStorage.getItem('puijai_global_next_id');
+    if (globalNextId) {
+      return {
+        referenceId: globalNextId,
+        userRound: 1,
+        previousCount: 0,
+      };
+    }
+
     const lastId = localStorage.getItem('puijai_last_submitted_id');
     if (lastId) {
       return {
@@ -101,7 +110,7 @@ const getInitialUserStatus = () => {
   } catch (e) {}
 
   return {
-    referenceId: 'PUI-CANCEL-00001',
+    referenceId: 'PUI-CANCEL-00002',
     userRound: 1,
     previousCount: 0,
   };
@@ -109,8 +118,8 @@ const getInitialUserStatus = () => {
 
 export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
   const initialStatus = getInitialUserStatus();
-  const [referenceId, setReferenceId] = useState<string>(initialStatus.referenceId);
   const [userProfile, setUserProfile] = useState<LiffUserProfile | null>(() => getCachedLiffProfile());
+  const [referenceId, setReferenceId] = useState<string>(initialStatus.referenceId);
   const [userRound, setUserRound] = useState<number>(initialStatus.userRound);
   const [previousSubmissionsCount, setPreviousSubmissionsCount] = useState<number>(initialStatus.previousCount);
   const [previousRecord, setPreviousRecord] = useState<any | null>(null);
@@ -141,7 +150,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       return storedKey || 'LINE-DEVICE-01';
     };
 
-    // 1. Function to resolve ticket reference ID & user round in real-time
+    // 1. Function to resolve ticket reference ID & user round in real-time from Google Sheet
     const resolveUserStatus = async (profileObj?: LiffUserProfile | null) => {
       let urlUserId = '';
       let urlUsername = '';
@@ -156,7 +165,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       const targetUserId = profileObj?.userId || urlUserId || getPersistentUserKey(profileObj);
       const targetUsername = profileObj?.displayName || urlUsername || targetUserId;
 
-      // Realtime SWR: Query ticket reference ID and round via serverless backend proxy
+      // Realtime SWR: Query ticket reference ID and round directly from Google Sheet proxy
       try {
         const apiRes = await fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, {
           signal: AbortSignal.timeout(5000)
@@ -176,6 +185,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                 localStorage.setItem(`puijai_sync_status_${targetUsername}`, JSON.stringify(validData));
               }
               localStorage.setItem('puijai_last_sync_status', JSON.stringify(validData));
+              localStorage.setItem('puijai_global_next_id', validData.nextId);
             } catch (e) {}
           }
         }
@@ -188,22 +198,18 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       setUserProfile(initialFastProfile);
     }
 
-    // Schedule background synchronization after initial paint to avoid blocking critical path
-    const timer = setTimeout(() => {
-      if (!isMounted) return;
-      resolveUserStatus(initialFastProfile);
+    // Trigger instant real-time sync with Google Sheet on mount
+    resolveUserStatus(initialFastProfile);
 
-      // Fetch authoritative profile & sync status
-      getFastLiffProfile((profile) => {
-        if (!isMounted || !profile) return;
-        setUserProfile(profile);
-        resolveUserStatus(profile);
-      });
-    }, 150);
+    // In parallel, fetch authoritative LIFF Profile & sync
+    getFastLiffProfile((profile) => {
+      if (!isMounted || !profile) return;
+      setUserProfile(profile);
+      resolveUserStatus(profile);
+    });
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
     };
   }, []);
 
