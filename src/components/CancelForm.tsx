@@ -125,7 +125,6 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
   useEffect(() => {
     let isMounted = true;
-    const gasWebhookUrl = 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
 
     // Helper to get persistent user identifier (LINE userId or unique device key)
     const getPersistentUserKey = (profile?: LiffUserProfile | null) => {
@@ -157,34 +156,28 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       const targetUserId = profileObj?.userId || urlUserId || getPersistentUserKey(profileObj);
       const targetUsername = profileObj?.displayName || urlUsername || targetUserId;
 
-      // Parallel Realtime SWR: Query Google Sheet via GAS & Backend simultaneously
-      const gasPromise = fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, { 
-        redirect: 'follow',
-        signal: AbortSignal.timeout(5000)
-      }).then(async (r) => (r.ok ? r.json() : null)).catch(() => null);
-
-      const apiPromise = fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, {
-        signal: AbortSignal.timeout(4000)
-      }).then(async (r) => (r.ok ? r.json() : null)).catch(() => null);
-
+      // Realtime SWR: Query ticket reference ID and round via serverless backend proxy
       try {
-        // Use first successful result to update instantly
-        const [gasData, apiData] = await Promise.all([gasPromise, apiPromise]);
-        const validData = (gasData && gasData.success && gasData.nextId) ? gasData : (apiData && apiData.success && apiData.nextId ? apiData : null);
+        const apiRes = await fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, {
+          signal: AbortSignal.timeout(5000)
+        });
 
-        if (isMounted && validData && validData.nextId) {
-          setReferenceId(validData.nextId);
-          if (validData.currentRound) {
-            setUserRound(validData.currentRound);
-            setPreviousSubmissionsCount(validData.totalHistory || 0);
-          }
-          try {
-            localStorage.setItem(`puijai_sync_status_${targetUserId}`, JSON.stringify(validData));
-            if (targetUsername && targetUsername !== targetUserId) {
-              localStorage.setItem(`puijai_sync_status_${targetUsername}`, JSON.stringify(validData));
+        if (apiRes.ok) {
+          const validData = await apiRes.json();
+          if (isMounted && validData && validData.nextId) {
+            setReferenceId(validData.nextId);
+            if (validData.currentRound) {
+              setUserRound(validData.currentRound);
+              setPreviousSubmissionsCount(validData.totalHistory || 0);
             }
-            localStorage.setItem('puijai_last_sync_status', JSON.stringify(validData));
-          } catch (e) {}
+            try {
+              localStorage.setItem(`puijai_sync_status_${targetUserId}`, JSON.stringify(validData));
+              if (targetUsername && targetUsername !== targetUserId) {
+                localStorage.setItem(`puijai_sync_status_${targetUsername}`, JSON.stringify(validData));
+              }
+              localStorage.setItem('puijai_last_sync_status', JSON.stringify(validData));
+            } catch (e) {}
+          }
         }
       } catch (e) {}
     };
