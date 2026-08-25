@@ -52,12 +52,14 @@ app.get('/api/cancellations/next-id', async (req, res) => {
     const userId = String(req.query.userId || '').trim();
     const username = String(req.query.username || '').trim();
 
-    // 1. Primary: Query GAS directly (Single Source of Truth)
+    res.setHeader('Cache-Control', 'private, max-age=30');
+
+    // 1. Primary: Query GAS with fast timeout (max 1500ms to avoid chaining delays)
     const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
     try {
       const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`, {
         redirect: 'follow',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(1500),
       });
       if (gasRes.ok) {
         const gasData = await gasRes.json();
@@ -72,10 +74,10 @@ app.get('/api/cancellations/next-id', async (req, res) => {
         }
       }
     } catch (gasErr) {
-      console.warn('GAS direct query failed, falling back to local:', gasErr);
+      // Fast fallback on timeout or error
     }
 
-    // 2. Fallback: Local computation
+    // 2. Fallback: Instant local computation (0-2ms)
     const userInfo = await getUserCancellationInfo(userId, username);
     res.json({
       success: true,

@@ -186,20 +186,24 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     const initialFastProfile = getCachedLiffProfile();
     if (initialFastProfile) {
       setUserProfile(initialFastProfile);
-      resolveUserStatus(initialFastProfile);
-    } else {
-      resolveUserStatus();
     }
 
-    // 2. Fetch LINE LIFF Profile & lock ID per user
-    getFastLiffProfile((profile) => {
-      if (!isMounted || !profile) return;
-      setUserProfile(profile);
-      resolveUserStatus(profile);
-    });
+    // Schedule background synchronization after initial paint to avoid blocking critical path
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      resolveUserStatus(initialFastProfile);
+
+      // Fetch authoritative profile & sync status
+      getFastLiffProfile((profile) => {
+        if (!isMounted || !profile) return;
+        setUserProfile(profile);
+        resolveUserStatus(profile);
+      });
+    }, 150);
 
     return () => {
       isMounted = false;
+      clearTimeout(timer);
     };
   }, []);
 

@@ -1,5 +1,4 @@
-import liff from '@line/liff';
-
+let liffInstance: any = null;
 let liffInitialized = false;
 let initPromise: Promise<boolean> | null = null;
 
@@ -10,6 +9,21 @@ export interface LiffUserProfile {
   displayName?: string;
   pictureUrl?: string;
   statusMessage?: string;
+}
+
+/**
+ * Dynamically import LIFF SDK only when needed
+ */
+async function getLiffInstance(): Promise<any> {
+  if (liffInstance) return liffInstance;
+  try {
+    const mod = await import('@line/liff');
+    liffInstance = mod.default || mod;
+    return liffInstance;
+  } catch (e) {
+    console.warn('[LIFF] Failed to load @line/liff dynamically:', e);
+    return null;
+  }
 }
 
 /**
@@ -61,46 +75,55 @@ export function saveCachedLiffProfile(profile: LiffUserProfile) {
 }
 
 /**
- * Initialize LINE LIFF SDK safely and eagerly
+ * Initialize LINE LIFF SDK safely and lazily
  */
-export function initLiff(): Promise<boolean> {
-  if (liffInitialized) return Promise.resolve(true);
+export async function initLiff(): Promise<boolean> {
+  if (liffInitialized) return true;
   if (initPromise) return initPromise;
 
   const rawLiffId = (import.meta as any).env?.VITE_LIFF_ID || '2011043750-SsHmvV2G';
   const liffId = rawLiffId.replace(/^https?:\/\/liff\.line\.me\//, '').trim();
 
   if (!liffId) {
-    console.log('[LIFF] Running in Web mode.');
-    return Promise.resolve(false);
+    return false;
   }
 
-  initPromise = liff
-    .init({ liffId })
-    .then(() => {
+  initPromise = (async () => {
+    try {
+      const liff = await getLiffInstance();
+      if (!liff) return false;
+
+      await liff.init({ liffId });
       liffInitialized = true;
       console.log('[LIFF] Initialized successfully. IsInClient:', liff.isInClient());
       return true;
-    })
-    .catch((error) => {
+    } catch (error) {
       console.warn('[LIFF] Init error (running in standard web environment):', error);
       liffInitialized = false;
       return false;
-    });
+    }
+  })();
 
   return initPromise;
 }
 
-// Pre-warm LIFF SDK asynchronously without blocking initial main-thread script evaluation
+// Pre-warm LIFF SDK asynchronously only when running inside LINE or idle
 if (typeof window !== 'undefined') {
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(() => {
-      initLiff().catch(() => {});
-    });
-  } else {
-    setTimeout(() => {
-      initLiff().catch(() => {});
-    }, 100);
+  const isLineOrLiff = 
+    window.location.search.includes('liff') || 
+    window.location.pathname.includes('liff') ||
+    navigator.userAgent.includes('Line');
+
+  if (isLineOrLiff) {
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => {
+        initLiff().catch(() => {});
+      });
+    } else {
+      setTimeout(() => {
+        initLiff().catch(() => {});
+      }, 500);
+    }
   }
 }
 
@@ -109,7 +132,7 @@ if (typeof window !== 'undefined') {
  */
 export function isInLiffClient(): boolean {
   try {
-    return liffInitialized && liff.isInClient();
+    return liffInitialized && !!liffInstance?.isInClient?.();
   } catch {
     return false;
   }
@@ -132,12 +155,12 @@ export async function getFastLiffProfile(
 
   try {
     const initialized = await initLiff();
-    if (!initialized) return cached;
+    if (!initialized || !liffInstance) return cached;
 
-    if (liff.isLoggedIn()) {
-      // Phase 2: Instant decoded ID token (available immediately in memory without network call)
+    if (liffInstance.isLoggedIn()) {
+      // Phase 2: Instant decoded ID token
       try {
-        const idToken: any = liff.getDecodedIDToken();
+        const idToken: any = liffInstance.getDecodedIDToken();
         if (idToken && (idToken.name || idToken.picture)) {
           const fastProfile: LiffUserProfile = {
             userId: idToken.sub,
@@ -149,12 +172,10 @@ export async function getFastLiffProfile(
             onProfileCallback(fastProfile);
           }
         }
-      } catch (e) {
-        // ID token decode error fallback
-      }
+      } catch (e) {}
 
       // Phase 3: Live API getProfile
-      const liveProfile = await liff.getProfile();
+      const liveProfile = await liffInstance.getProfile();
       const updatedProfile: LiffUserProfile = {
         userId: liveProfile.userId,
         displayName: liveProfile.displayName,
@@ -167,9 +188,8 @@ export async function getFastLiffProfile(
         onProfileCallback(updatedProfile);
       }
       return updatedProfile;
-    } else if (liff.isInClient()) {
-      // Inside LINE App client, automatically login
-      liff.login();
+    } else if (liffInstance.isInClient()) {
+      liffInstance.login();
     }
   } catch (err) {
     console.warn('[LIFF] Fast profile resolution warning:', err);
@@ -187,7 +207,6 @@ export async function getLiffProfile(): Promise<LiffUserProfile | null> {
 
 /**
  * Send a summary notification message directly into LINE Chat via LIFF sendMessages
- * (Triggered immediately upon submitting the cancellation form)
  */
 export async function sendLiffSummaryMessage(cancellation: {
   id: string;
@@ -199,7 +218,7 @@ export async function sendLiffSummaryMessage(cancellation: {
 }): Promise<boolean> {
   try {
     const initialized = await initLiff();
-    if (initialized && liff && liff.isInClient()) {
+    if (initialized && liffInstance && liffInstance.isInClient()) {
       const finalRoundNumber = cancellation.round && cancellation.round > 0
         ? cancellation.round
         : (cancellation.notes?.match(/รอบที่\s*(\d+)/)?.[1]
@@ -208,7 +227,7 @@ export async function sendLiffSummaryMessage(cancellation: {
 
       const roundText = `\nรอบการยกเลิก: รอบที่ ${finalRoundNumber}`;
 
-      await liff.sendMessages([
+      await liffInstance.sendMessages([
         {
           type: 'text',
           text: `📋 [แจ้งเตือน: บันทึกขอยกเลิกสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}${roundText}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
@@ -227,8 +246,8 @@ export async function sendLiffSummaryMessage(cancellation: {
  */
 export function closeLiffWindow() {
   try {
-    if (liff && liff.isInClient()) {
-      liff.closeWindow();
+    if (liffInstance && liffInstance.isInClient()) {
+      liffInstance.closeWindow();
       return;
     }
   } catch (e) {
@@ -256,8 +275,8 @@ export function closeLiffWindow() {
  */
 export function getLineAppVersion(url?: string): string | null {
   try {
-    if (liffInitialized && liff.getLineVersion) {
-      const ver = liff.getLineVersion();
+    if (liffInitialized && liffInstance?.getLineVersion) {
+      const ver = liffInstance.getLineVersion();
       if (ver) return ver;
     }
   } catch (e) {}
@@ -280,9 +299,9 @@ export function getLiffContext() {
   return {
     isInClient: isInLiffClient(),
     lineAppVersion: getLineAppVersion(),
-    os: liffInitialized ? liff.getOS?.() : null,
-    language: liffInitialized ? liff.getLanguage?.() : (typeof navigator !== 'undefined' ? navigator.language : 'th'),
-    liffVersion: liffInitialized ? liff.getVersion?.() : null,
+    os: liffInitialized ? liffInstance?.getOS?.() : null,
+    language: liffInitialized ? liffInstance?.getLanguage?.() : (typeof navigator !== 'undefined' ? navigator.language : 'th'),
+    liffVersion: liffInitialized ? liffInstance?.getVersion?.() : null,
   };
 }
 

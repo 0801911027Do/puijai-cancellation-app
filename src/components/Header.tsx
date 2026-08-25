@@ -22,11 +22,18 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Brand Logo & Title */}
         <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
           <div className="relative flex-shrink-0">
-            <img
-              src="/puijai-logo.jpg"
-              alt="Puijai Logo"
-              className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl border border-sky-200 shadow-sm shadow-sky-200/80 object-cover ring-2 ring-sky-100"
-            />
+            <picture>
+              <source srcSet="/puijai-logo-thumb.webp" type="image/webp" />
+              <img
+                src="/puijai-logo-thumb.webp"
+                alt="Puijai Logo"
+                width={44}
+                height={44}
+                loading="eager"
+                decoding="async"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl border border-sky-200 shadow-sm shadow-sky-200/80 object-cover ring-2 ring-sky-100"
+              />
+            </picture>
             <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" title="ระบบพร้อมใช้งาน"></span>
           </div>
           <div className="min-w-0 flex-1">
