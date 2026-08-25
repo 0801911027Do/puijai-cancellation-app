@@ -3,13 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Cancellation } from './types';
 import { Header } from './components/Header';
 import { CancelForm } from './components/CancelForm';
-import { ThankYouView } from './components/ThankYouView';
-import { AdminDashboard } from './components/AdminDashboard';
-import { AdminLoginModal } from './components/AdminLoginModal';
+
+const ThankYouView = lazy(() =>
+  import('./components/ThankYouView').then((module) => ({ default: module.ThankYouView }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
+);
+const AdminLoginModal = lazy(() =>
+  import('./components/AdminLoginModal').then((module) => ({ default: module.AdminLoginModal }))
+);
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'user' | 'admin' | 'thankyou'>(() => {
@@ -120,28 +127,34 @@ export default function App() {
           <CancelForm onSubmitSuccess={handleFormSubmitSuccess} />
         )}
 
-        {currentView === 'thankyou' && lastSubmittedData && (
-          <ThankYouView
-            cancellationData={lastSubmittedData}
-            onResetForm={() => changeView('user')}
-            onViewAdmin={() => changeView('admin')}
-          />
-        )}
+        <Suspense fallback={
+          <div className="flex justify-center items-center py-24">
+            <div className="w-8 h-8 border-3 border-pink-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          {currentView === 'thankyou' && lastSubmittedData && (
+            <ThankYouView
+              cancellationData={lastSubmittedData}
+              onResetForm={() => changeView('user')}
+              onViewAdmin={() => changeView('admin')}
+            />
+          )}
 
-        {currentView === 'admin' && (
-          !isAdminAuthenticated ? (
-            <AdminLoginModal
-              onLoginSuccess={() => setIsAdminAuthenticated(true)}
-              onCancel={() => changeView('user')}
-            />
-          ) : (
-            <AdminDashboard
-              cancellations={cancellations}
-              onRefresh={fetchCancellations}
-              onViewUserForm={() => changeView('user')}
-            />
-          )
-        )}
+          {currentView === 'admin' && (
+            !isAdminAuthenticated ? (
+              <AdminLoginModal
+                onLoginSuccess={() => setIsAdminAuthenticated(true)}
+                onCancel={() => changeView('user')}
+              />
+            ) : (
+              <AdminDashboard
+                cancellations={cancellations}
+                onRefresh={fetchCancellations}
+                onViewUserForm={() => changeView('user')}
+              />
+            )
+          )}
+        </Suspense>
       </main>
 
       {/* App Footer */}

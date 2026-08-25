@@ -11,6 +11,16 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-icons': ['lucide-react'],
+          },
+        },
+      },
+    },
     optimizeDeps: {
       exclude: ['@tailwindcss/oxide', '@tailwindcss/oxide-win32-x64-msvc'],
     },

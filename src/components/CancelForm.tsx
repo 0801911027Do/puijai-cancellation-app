@@ -374,11 +374,11 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             </span>
           </div>
 
-          <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-white/90 mb-2">
+          <div className="flex items-center justify-center sm:justify-start space-x-1.5 text-white mb-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
-            <span className="font-bold text-[10px] sm:text-xs tracking-[0.15em] uppercase opacity-90">
+            <span className="font-bold text-[10px] sm:text-xs tracking-[0.15em] uppercase text-white">
               Puijai Service Cancellation
             </span>
           </div>
@@ -387,12 +387,12 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             <div className="mb-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 px-3 sm:px-3.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-full text-xs shadow-sm border border-white/80 transition-all max-w-full">
               <span className="inline-flex items-center space-x-1.5 shrink-0">
                 <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0"></span>
-                <span className="font-bold text-pink-600 whitespace-nowrap text-xs">
+                <span className="font-bold text-pink-700 whitespace-nowrap text-xs">
                   คำขอยกเลิก: รอบที่ {userRound}
                 </span>
               </span>
-              <span className="text-slate-300 font-light hidden sm:inline">|</span>
-              <span className="text-slate-500 font-medium whitespace-nowrap text-[11px] sm:text-xs">
+              <span className="text-slate-400 font-normal hidden sm:inline">|</span>
+              <span className="text-slate-700 font-medium whitespace-nowrap text-[11px] sm:text-xs">
                 เคยยกเลิกมาแล้ว {previousSubmissionsCount} ครั้ง
               </span>
             </div>
@@ -402,7 +402,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             <span className="inline-block">แบบฟอร์มขอยกเลิก</span> <span className="inline-block">แชทบอท "Puijai"</span>
           </h2>
           
-          <p className="text-white/95 drop-shadow-sm font-medium text-[13px] sm:text-[15px] leading-relaxed opacity-95 max-w-[95%] sm:max-w-none">
+          <p className="text-white drop-shadow-sm font-medium text-[13px] sm:text-[15px] leading-relaxed max-w-[95%] sm:max-w-none">
             <span className="inline-block">แชทบอท Puijai (น้องปุยใจ)</span> <span className="inline-block">เป็นบริการ AI</span> <span className="inline-block">เราขอขอบคุณที่คุณเปิดโอกาสลองใช้</span> <span className="inline-block">และยินดีรับฟังข้อเสนอแนะ</span><span className="inline-block">เพื่อนำไปพัฒนาต่อ ☁️</span>
           </p>
         </div>
@@ -415,7 +415,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div className="flex items-center space-x-1.5 min-w-0">
               <Sparkles className="w-4 h-4 text-pink-500 shrink-0" />
-              <span className="text-slate-600 font-medium whitespace-nowrap shrink-0">
+              <span className="text-slate-700 font-semibold whitespace-nowrap shrink-0">
                 รหัสคำขอ:
               </span>
               <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
@@ -471,7 +471,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                     <span className="flex-shrink-0">{cat.icon}</span>
                     <span className="break-words">{cat.label}</span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{cat.descriptionNode}</p>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">{cat.descriptionNode}</p>
                 </div>
               </label>
             ))}
@@ -497,9 +497,9 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               placeholder="ช่วยบอกเราสักนิดว่าทำไมถึงต้องการยกเลิก หรือมีจุดไหนที่คุณอยากให้น้องปุยใจปรับปรุงเพิ่มเติม (เช่น ตอบช้า, คำตอบไม่ตรงใจ, สลับไปใช้แอปอื่น ฯลฯ)..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-slate-900 text-sm leading-relaxed transition-all placeholder:text-slate-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
+              className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 text-slate-900 text-sm leading-relaxed transition-all placeholder:text-slate-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-600 mt-1">
               <span className="inline-block">ความคิดเห็นของคุณมีค่ามาก</span> <span className="inline-block">เพื่อนำไปพัฒนาการตอบคำถาม</span><span className="inline-block">ของน้องปุยใจให้ดียิ่งขึ้น ☁️</span>
             </p>
           </div>
@@ -572,7 +572,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
                   />
                 </button>
               ))}
-              <span className="text-xs text-slate-500 ml-2 font-medium">({rating}/5 คะแนน)</span>
+              <span className="text-xs text-slate-600 ml-2 font-semibold">({rating}/5 คะแนน)</span>
             </div>
           </div>
         </div>
@@ -584,7 +584,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             <Info className="w-4 h-4 text-pink-600 shrink-0" />
             <span className="whitespace-nowrap font-bold">ข้อตกลงและผลของการยกเลิกบริการ</span>
           </div>
-          <ul className="text-xs text-slate-600 space-y-2 list-disc list-inside pl-1 leading-relaxed">
+          <ul className="text-xs text-slate-700 space-y-2 list-disc list-inside pl-1 leading-relaxed">
             <li>
               <span className="inline-block">หลังจากส่งคำขอยกเลิก</span> <span className="inline-block">แชทบอท Puijai</span> <span className="inline-block">จะหยุดการตอบกลับอัตโนมัติทันที</span>
             </li>
@@ -617,7 +617,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
         {/* Form Actions */}
         <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-slate-500 leading-normal">
+          <div className="text-xs text-slate-600 leading-normal font-medium">
             <span className="inline-block">* ข้อมูลจะถูกจัดเก็บลงระบบ</span> <span className="inline-block">และแจ้งเตือนเข้าแชท LINE ทันที</span>
           </div>
 

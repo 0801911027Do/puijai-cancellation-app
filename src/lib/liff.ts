@@ -91,11 +91,17 @@ export function initLiff(): Promise<boolean> {
   return initPromise;
 }
 
-// Start pre-warming LIFF SDK immediately upon module evaluation
-try {
-  initLiff();
-} catch (e) {
-  // Safe ignore
+// Pre-warm LIFF SDK asynchronously without blocking initial main-thread script evaluation
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(() => {
+      initLiff().catch(() => {});
+    });
+  } else {
+    setTimeout(() => {
+      initLiff().catch(() => {});
+    }, 100);
+  }
 }
 
 /**
