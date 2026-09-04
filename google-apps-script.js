@@ -207,9 +207,19 @@ function doPost(e) {
     var rating = data.rating || 3;
     var status = data.status || 'ยกเลิกสำเร็จ';
     
-    // บันทึกหมายเหตุ: แสดง "รอบที่ X" พร้อมจดจำ LINE UID ไว้ในระบบเพื่ออ้างอิงรอบถัดไป
+    // บันทึกหมายเหตุ: แสดง "รอบที่ X" พร้อมจดจำชื่อโปรไฟล์ LINE และ LINE UID ไว้อย่างชัดเจน
+    // เพื่อให้ทั้ง LINE Bot และระบบสามารถค้นหาพบได้ทันทีทั้งจากชื่อโปรไฟล์ LINE และ UID
     var roundLabel = 'รอบที่ ' + finalRound;
-    var finalNotes = userKey ? (roundLabel + ' [UID:' + userKey + ']') : roundLabel;
+    var noteParts = [roundLabel];
+    if (incomingUsername && !incomingUsername.startsWith('PUI-CANCEL-') && incomingUsername !== 'LINE-DEVICE-01') {
+      noteParts.push('LINE: ' + incomingUsername);
+    }
+    if (incomingUserId && incomingUserId !== incomingUsername) {
+      noteParts.push('[UID:' + incomingUserId + ']');
+    } else if (userKey && noteParts.length === 1) {
+      noteParts.push('[UID:' + userKey + ']');
+    }
+    var finalNotes = noteParts.join(' ');
     
     // บันทึกแถวใหม่ลงในตาราง Google Sheet (1 แถวต่อ 1 คำขอเท่านั้น)
     sheet.appendRow([
@@ -345,9 +355,9 @@ function doGet(e) {
         var cleanNotes = rowNotes.split(' [UID:')[0].trim();
         var parsedUser = '';
         if (rowNotes.indexOf('LINE: ') !== -1) {
-          parsedUser = rowNotes.split('LINE: ')[1].trim();
+          parsedUser = rowNotes.split('LINE: ')[1].split(' [UID:')[0].trim();
         } else if (rowNotes.indexOf('ผู้ใช้: ') !== -1) {
-          parsedUser = rowNotes.split('ผู้ใช้: ')[1].trim();
+          parsedUser = rowNotes.split('ผู้ใช้: ')[1].split(' [UID:')[0].trim();
         } else {
           parsedUser = String(row[0] || '');
         }
@@ -372,7 +382,10 @@ function doGet(e) {
       var isCancelled = false;
       var foundRecord = null;
       for (var k = 0; k < result.length; k++) {
-        if (String(result[k].id).trim().toLowerCase() === checkId || String(result[k].username || '').trim().toLowerCase() === checkId) {
+        var recId = String(result[k].id || '').trim().toLowerCase();
+        var recUser = String(result[k].username || '').trim().toLowerCase();
+        var rowNotesRaw = (data[k + 1] && data[k + 1][7] ? String(data[k + 1][7]) : '').trim().toLowerCase();
+        if (checkId && (recId === checkId || recUser === checkId || rowNotesRaw.indexOf(checkId) !== -1)) {
           isCancelled = true;
           foundRecord = result[k];
           break;

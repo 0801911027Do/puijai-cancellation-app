@@ -304,4 +304,3 @@ export function getLiffContext() {
     liffVersion: liffInitialized ? liffInstance?.getVersion?.() : null,
   };
 }
-

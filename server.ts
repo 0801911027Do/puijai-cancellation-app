@@ -140,7 +140,8 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'กรุณากรอกเหตุผลการยกเลิก' });
       }
 
-      const assignedUsername = String(userId || username || '').trim();
+      const cleanUserId = String(userId || '').trim();
+      const cleanUsername = String(username || '').trim() || cleanUserId;
       let finalId = id && String(id).startsWith('PUI-CANCEL-') ? String(id).trim() : '';
       let finalRound = round && Number(round) > 0 ? Number(round) : 1;
 
@@ -151,8 +152,8 @@ async function startServer() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: assignedUsername,
-            username: assignedUsername || finalId,
+            userId: cleanUserId,
+            username: cleanUsername,
             reason: String(reason).trim(),
             category: category || 'อื่นๆ',
             priority: priority || 'กลาง',
@@ -177,7 +178,7 @@ async function startServer() {
 
       // 2. Fallback: compute locally if GAS didn't return an ID
       if (!finalId) {
-        const userInfo = await getUserCancellationInfo(assignedUsername);
+        const userInfo = await getUserCancellationInfo(cleanUserId, cleanUsername);
         finalId = userInfo.assignedId;
         finalRound = userInfo.round;
       }
@@ -190,7 +191,7 @@ async function startServer() {
       // 3. Save to local store as backup
       const saved = saveCancellation({
         id: finalId,
-        username: assignedUsername || finalId,
+        username: cleanUsername || finalId,
         reason: String(reason).trim(),
         category: category || 'อื่นๆ',
         priority: priority || 'กลาง',
