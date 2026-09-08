@@ -95,7 +95,6 @@ export async function initLiff(): Promise<boolean> {
 
       await liff.init({ liffId });
       liffInitialized = true;
-      console.log('[LIFF] Initialized successfully. IsInClient:', liff.isInClient());
       return true;
     } catch (error) {
       console.warn('[LIFF] Init error (running in standard web environment):', error);
@@ -236,11 +235,11 @@ export async function sendLiffSummaryMessage(cancellation: {
 /**
  * Close LIFF Window or return to LINE chat cleanly without sending any extra messages
  */
-export function closeLiffWindow() {
+export function closeLiffWindow(): boolean {
   try {
     if (liffInstance && liffInstance.isInClient()) {
       liffInstance.closeWindow();
-      return;
+      return true;
     }
   } catch (e) {
     console.warn('[LIFF] Could not close LIFF window:', e);
@@ -250,16 +249,19 @@ export function closeLiffWindow() {
   try {
     if (window.opener) {
       window.close();
-      return;
+      return true;
     }
     if (window.history && window.history.length > 1) {
       window.history.back();
-      return;
+      return true;
     }
   } catch (e) {}
 
   // Fallback: Redirect to LINE Official Account Chat
-  window.location.href = 'https://line.me/R/ti/p/@123xuwni';
+  try {
+    window.location.href = 'https://line.me/R/ti/p/@123xuwni';
+  } catch (e) {}
+  return false;
 }
 
 /**
@@ -296,3 +298,19 @@ export function getLiffContext() {
     liffVersion: liffInitialized ? liffInstance?.getVersion?.() : null,
   };
 }
+
+/**
+ * Get user's LINE ID Token for secure backend authentication & PDPA compliance verification
+ */
+export async function getLiffIdToken(): Promise<string | null> {
+  try {
+    const liff = await getLiffInstance();
+    if (liff && liff.isLoggedIn()) {
+      return liff.getIDToken() || null;
+    }
+  } catch (e) {
+    console.warn('[LIFF] Failed to get ID token:', e);
+  }
+  return null;
+}
+

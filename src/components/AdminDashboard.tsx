@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Cancellation, AIAnalysisResult, CancellationStatus } from '../types';
+import { Cancellation, AIAnalysisResult, CancellationStatus, PdpaAuditLog } from '../types';
 import {
   FileSpreadsheet,
   Download,
@@ -23,7 +23,9 @@ import {
   X,
   ArrowDown,
   ArrowUp,
-  ArrowUpDown
+  ArrowUpDown,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -51,6 +53,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<AIAnalysisResult | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [isPdpaModalOpen, setIsPdpaModalOpen] = useState(false);
+  const [pdpaLogs, setPdpaLogs] = useState<PdpaAuditLog[]>([]);
+  const [isLoadingPdpaLogs, setIsLoadingPdpaLogs] = useState(false);
+
+  const handleOpenPdpaLogs = async () => {
+    setIsPdpaModalOpen(true);
+    setIsLoadingPdpaLogs(true);
+    try {
+      const res = await fetch('/api/pdpa/audit-logs');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setPdpaLogs(json.data);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch PDPA logs:', err);
+    } finally {
+      setIsLoadingPdpaLogs(false);
+    }
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -381,6 +404,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         <div className="relative z-10 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleOpenPdpaLogs}
+            className="w-full sm:w-auto justify-center px-4 py-2.5 bg-slate-800/90 hover:bg-slate-700 text-sky-300 hover:text-white border border-slate-700/80 text-xs sm:text-sm font-bold rounded-xl flex items-center space-x-2 shadow-md transition-all cursor-pointer"
+          >
+            <ShieldCheck className="w-4 h-4 text-sky-400" />
+            <span>บันทึก PDPA (Audit Trail)</span>
+          </button>
+
           <a
             href="/api/export/csv"
             download="puijai_cancellations.csv"
@@ -891,6 +923,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+      {/* PDPA Compliance Audit Trail Modal */}
+      {isPdpaModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-100 text-left space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 shadow-xs">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span>บันทึกหลักฐานการใช้สิทธิ PDPA</span>
+                    <span className="text-xs bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">มาตรา 33</span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Data Subject Erasure Request Log (Right to be Forgotten) สำหรับชี้แจงต่อ สคส.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPdpaModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {isLoadingPdpaLogs ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-sky-600" />
+                  <p className="text-xs">กำลังโหลดบันทึกหลักฐาน...</p>
+                </div>
+              ) : pdpaLogs.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 space-y-2 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <ShieldCheck className="w-8 h-8 mx-auto text-slate-400" />
+                  <p className="text-xs font-semibold">ยังไม่มีประวัติการขอลบข้อมูลส่วนบุคคลในระบบ</p>
+                  <p className="text-[11px] text-slate-400">เมื่อผู้ใช้กดยืนยันลบข้อมูลผ่านหน้าเว็บ/LINE บันทึกการทำลายข้อมูลจะปรากฏที่นี่ทันที</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pdpaLogs.map((log: any, idx: number) => (
+                    <div key={idx} className="bg-slate-50 hover:bg-slate-100/80 p-3.5 rounded-2xl border border-slate-200 transition-colors space-y-2 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                          {log.receiptId}
+                        </span>
+                        <span className="text-[11px] text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full font-bold">
+                          ● {log.status || 'COMPLETED'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600">
+                        <div>
+                          <span className="text-slate-400 block">สิทธิที่ใช้:</span>
+                          <span className="font-semibold text-slate-800">{log.rightType}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block">วันเวลาที่ทำลายข้อมูล:</span>
+                          <span className="font-semibold text-slate-800">{new Date(log.timestamp).toLocaleString('th-TH')}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block">แฮชผู้ใช้ (User Hash - SHA256):</span>
+                          <span className="font-mono text-slate-700 break-all">{log.userHash}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block">การดำเนินการ (Action Details):</span>
+                          <span className="text-slate-700">{log.actionDetails}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t flex items-center justify-between text-xs text-slate-500 shrink-0">
+              <span>บันทึกทั้งหมด {pdpaLogs.length} รายการ</span>
+              <button
+                type="button"
+                onClick={() => setIsPdpaModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors cursor-pointer"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

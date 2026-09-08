@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.ts" },
     { "source": "/((?!assets/|robots\\.txt|sitemap\\.xml|llms\\.txt|puijai-logo\\.jpg|favicon\\.ico).*)", "destination": "/index.html" }

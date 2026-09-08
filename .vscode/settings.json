@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "C:\\Python314\\python.exe",
+  "files.associations": {
+    "bun.lock": "jsonc"
+  }
+}

@@ -134,30 +134,7 @@ function doPost(e) {
     var incomingReason = String(data.reason || "").trim();
     var incomingCategory = String(data.category || "").trim();
 
-    // 1. ป้องกันการกดส่งซ้ำในเสี้ยววินาที (Deduplication Check)
-    if (allRows.length > 1) {
-      var lastRow = allRows[allRows.length - 1];
-      var lastId = String(lastRow[0] || "").trim();
-      var lastCategory = String(lastRow[2] || "").trim();
-      var lastReason = String(lastRow[3] || "").trim();
-
-      if (
-        incomingReason &&
-        lastReason === incomingReason &&
-        lastCategory === incomingCategory
-      ) {
-        return ContentService.createTextOutput(
-          JSON.stringify({
-            success: true,
-            message: "ข้อมูลนี้ถูกบันทึกไปแล้ว (Prevented duplicate row)",
-            id: lastId,
-            isDuplicatePrevented: true,
-          }),
-        ).setMimeType(ContentService.MimeType.JSON);
-      }
-    }
-
-    // 2. ดึงข้อมูลระบุตัวตนของผู้ใช้ LINE (userId จาก LIFF หรือ client key)
+    // 1. ดึงข้อมูลระบุตัวตนของผู้ใช้ LINE (userId จาก LIFF หรือ client key)
     var incomingUserId = (data.userId || "").toString().trim();
     var incomingUsername = (data.username || "").toString().trim();
     var userKey =
@@ -167,6 +144,44 @@ function doPost(e) {
         : "");
     if (!userKey && data.id && String(data.id).startsWith("PUI-CANCEL-")) {
       userKey = String(data.id).trim();
+    }
+
+    // 2. ป้องกันการกดส่งซ้ำเฉพาะกรณีผู้ใช้คนเดิมกดส่งซ้ำติดกันในเสี้ยววินาที (< 15 วินาที)
+    if (allRows.length > 1) {
+      var lastRow = allRows[allRows.length - 1];
+      var lastId = String(lastRow[0] || "").trim();
+      var lastDate = lastRow[1];
+      var lastCategory = String(lastRow[2] || "").trim();
+      var lastReason = String(lastRow[3] || "").trim();
+      var lastNotes = String(lastRow[7] || "").trim().toLowerCase();
+
+      var isSameUser = false;
+      if (incomingUserId && lastNotes.indexOf(incomingUserId.toLowerCase()) !== -1) {
+        isSameUser = true;
+      } else if (incomingUsername && lastNotes.indexOf(incomingUsername.toLowerCase()) !== -1) {
+        isSameUser = true;
+      }
+
+      var isRecentDuplicate = false;
+      if (isSameUser && incomingReason && lastReason === incomingReason && lastCategory === incomingCategory) {
+        try {
+          var lastTime = lastDate instanceof Date ? lastDate.getTime() : new Date(lastDate).getTime();
+          if (!isNaN(lastTime) && (Date.now() - lastTime < 15000)) {
+            isRecentDuplicate = true;
+          }
+        } catch (e) {}
+      }
+
+      if (isRecentDuplicate) {
+        return ContentService.createTextOutput(
+          JSON.stringify({
+            success: true,
+            message: "ข้อมูลนี้ถูกบันทึกไปแล้ว (Prevented rapid double-click)",
+            id: lastId,
+            isDuplicatePrevented: true,
+          }),
+        ).setMimeType(ContentService.MimeType.JSON);
+      }
     }
 
     var searchKeys = [];

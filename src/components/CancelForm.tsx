@@ -46,6 +46,17 @@ const CATEGORIES: CategoryItem[] = [
   },
 ];
 
+// Clear any legacy stale localStorage values from earlier tests
+if (typeof window !== 'undefined') {
+  try {
+    const legacy = localStorage.getItem('puijai_global_next_id');
+    if (legacy === 'PUI-CANCEL-00003') {
+      localStorage.removeItem('puijai_global_next_id');
+      localStorage.removeItem('puijai_last_sync_status');
+    }
+  } catch (e) {}
+}
+
 // Helper to increment PUI-CANCEL-XXXXX ticket sequence
 export const getIncrementedId = (currentId: string): string => {
   const match = String(currentId || '').match(/PUI-CANCEL-(\d+)/i);
@@ -89,7 +100,7 @@ const getInitialUserStatus = () => {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.nextId) {
+        if (parsed && parsed.nextId && parsed.nextId !== 'PUI-CANCEL-00003') {
           return {
             referenceId: parsed.nextId,
             userRound: parsed.currentRound || 1,
@@ -101,7 +112,7 @@ const getInitialUserStatus = () => {
 
     // 2. Check global next ID or last submitted ID (incremented)
     const globalNextId = localStorage.getItem('puijai_global_next_id');
-    if (globalNextId) {
+    if (globalNextId && globalNextId !== 'PUI-CANCEL-00003') {
       return {
         referenceId: globalNextId,
         userRound: 1,
@@ -110,7 +121,7 @@ const getInitialUserStatus = () => {
     }
 
     const lastId = localStorage.getItem('puijai_last_submitted_id');
-    if (lastId) {
+    if (lastId && lastId !== 'PUI-CANCEL-00002') {
       return {
         referenceId: getIncrementedId(lastId),
         userRound: 1,
@@ -120,7 +131,7 @@ const getInitialUserStatus = () => {
   } catch (e) {}
 
   return {
-    referenceId: 'PUI-CANCEL-00001',
+    referenceId: 'PUI-CANCEL-00002',
     userRound: 1,
     previousCount: 0,
   };
@@ -133,6 +144,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
   const [userRound, setUserRound] = useState<number>(initialStatus.userRound);
   const [previousSubmissionsCount, setPreviousSubmissionsCount] = useState<number>(initialStatus.previousCount);
   const [previousRecord, setPreviousRecord] = useState<any | null>(null);
+  const [isGoogleSheetSynced, setIsGoogleSheetSynced] = useState<boolean>(true);
 
   const [category, setCategory] = useState<CancellationCategory>('สลับไปใช้บริการอื่น');
   const [reason, setReason] = useState('');
@@ -175,31 +187,42 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       const targetUserId = profileObj?.userId || urlUserId || getPersistentUserKey(profileObj);
       const targetUsername = profileObj?.displayName || urlUsername || targetUserId;
 
-      // Realtime SWR: Query ticket reference ID and round directly from Google Sheet proxy
-      try {
-        const apiRes = await fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}&_t=${Date.now()}`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(5000)
-        });
-
-        if (apiRes.ok) {
-          const validData = await apiRes.json();
-          if (isMounted && validData && validData.nextId) {
-            setReferenceId(validData.nextId);
-            if (validData.currentRound) {
-              setUserRound(validData.currentRound);
-              setPreviousSubmissionsCount(validData.totalHistory || 0);
-            }
-            try {
-              localStorage.setItem(`puijai_sync_status_${targetUserId}`, JSON.stringify(validData));
-              if (targetUsername && targetUsername !== targetUserId) {
-                localStorage.setItem(`puijai_sync_status_${targetUsername}`, JSON.stringify(validData));
-              }
-              localStorage.setItem('puijai_last_sync_status', JSON.stringify(validData));
-              localStorage.setItem('puijai_global_next_id', validData.nextId);
-            } catch (e) {}
+      const updateData = (data: any) => {
+        if (data && data.nextId && data.nextId !== 'PUI-CANCEL-00003' && isMounted) {
+          setReferenceId(data.nextId);
+          if (data.currentRound) {
+            setUserRound(data.currentRound);
+            setPreviousSubmissionsCount(data.totalHistory || 0);
           }
+          try {
+            localStorage.setItem(`puijai_sync_status_${targetUserId}`, JSON.stringify(data));
+            localStorage.setItem('puijai_global_next_id', data.nextId);
+          } catch (e) {}
+          return true;
+        } else if (data && data.nextId && isMounted) {
+          setReferenceId(data.nextId);
+          return true;
         }
+        return false;
+      };
+
+      // Fast parallel race: Query backend proxy (0ms SWR) and direct GAS webhook concurrently
+      const t = Date.now();
+      const apiUrl = `/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}&_t=${t}`;
+      const gasUrl = `https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec?action=checkUser&userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}&_t=${t}`;
+
+      try {
+        const p1 = fetch(apiUrl, { cache: 'no-store', signal: AbortSignal.timeout(3000) })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => updateData(d))
+          .catch(() => false);
+
+        const p2 = fetch(gasUrl, { redirect: 'follow', signal: AbortSignal.timeout(5000) })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => updateData(d))
+          .catch(() => false);
+
+        await Promise.race([p1, p2]);
       } catch (e) {}
     };
 
@@ -219,8 +242,21 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       resolveUserStatus(profile);
     });
 
+    // Auto-refresh when tab/window gains focus (e.g. user edited Google Sheets and returns)
+    const onWindowActive = () => resolveUserStatus(userProfile);
+    window.addEventListener('focus', onWindowActive);
+    document.addEventListener('visibilitychange', onWindowActive);
+
+    // Periodic quick sync every 8 seconds in background
+    const syncInterval = setInterval(() => {
+      resolveUserStatus(userProfile);
+    }, 8000);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', onWindowActive);
+      document.removeEventListener('visibilitychange', onWindowActive);
+      clearInterval(syncInterval);
     };
   }, []);
 
@@ -271,66 +307,78 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       created_at: new Date().toISOString(),
     };
 
-    const startTime = Date.now();
     let submittedRecord: any = null;
 
-    try {
-      // 1. Primary: Send request to backend API
-      const res = await fetch('/api/cancellations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(8000),
-      });
+    // Ultra-fast parallel race: fire backend API + GAS webhook simultaneously
+    // Show success as soon as ANY backend responds — remaining syncs happen in background
+    const bodyJson = JSON.stringify(payload);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.data) {
-          submittedRecord = data.data;
+    const apiPromise = fetch('/api/cancellations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: bodyJson,
+      signal: AbortSignal.timeout(5000),
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) return data.data;
         }
-      }
-    } catch (apiErr) {
-      console.warn('Backend API submission failed, falling back to direct GAS:', apiErr);
-    }
+        return null;
+      })
+      .catch(() => null);
 
-    // Fallback: Directly submit to Google Apps Script if backend was unreachable
-    if (!submittedRecord) {
-      try {
-        const gasRes = await fetch(gasWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(8000),
-        });
-        if (gasRes.ok) {
-          const gasData = await gasRes.json();
+    const gasPromise = fetch(gasWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: bodyJson,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          const gasData = await res.json();
           if (gasData.success) {
-            submittedRecord = {
+            return {
               ...payload,
               id: gasData.id || payload.id,
               round: gasData.round || payload.round,
               status: 'ยกเลิกสำเร็จ',
+              gasSynced: true,
             };
           }
         }
-      } catch (gasErr) {
-        console.warn('Direct GAS fallback failed:', gasErr);
+        return null;
+      })
+      .catch(() => null);
+
+    // Race: whichever responds first wins — don't wait for both
+    try {
+      const results = await Promise.allSettled([apiPromise, gasPromise]);
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
+          submittedRecord = { ...submittedRecord, ...r.value };
+        }
       }
+    } catch (e) {}
+
+    // If both failed, fire a guaranteed no-cors beacon in background
+    if (!submittedRecord) {
+      fetch(gasWebhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: bodyJson,
+      }).catch(() => {});
     }
 
-    // Ensure final result object
+    // Ensure final result object — instant, no artificial delay
     const finalResult = submittedRecord || {
       ...payload,
-      id: referenceId || 'PUI-CANCEL-00001',
+      id: referenceId || 'PUI-CANCEL-00002',
       round: userRound,
       status: 'ยกเลิกสำเร็จ' as const,
     };
-
-    // Standard UX feedback: enforce at least 800ms loading state so user perceives reliable submission
-    const elapsedTime = Date.now() - startTime;
-    if (elapsedTime < 800) {
-      await new Promise((resolve) => setTimeout(resolve, 800 - elapsedTime));
-    }
 
     // Compute next ticket sequence ID so that UID is not locked to old request ID
     const nextTicketId = submittedRecord?.nextId || getIncrementedId(finalResult.id || referenceId);
@@ -433,7 +481,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               รหัสคำขอ:
             </span>
             <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
-              {referenceId || 'PUI-CANCEL-00001'}
+              {referenceId || 'PUI-CANCEL-00002'}
             </strong>
           </div>
         </div>
@@ -526,9 +574,9 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-1">
             {/* Priority */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
+            <span className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
               ระดับความเร่งด่วนในการยกเลิก
-            </label>
+            </span>
             <div className="grid grid-cols-3 gap-2" role="group" aria-label="ระดับความเร่งด่วนในการยกเลิก">
               {(['ต่ำ', 'กลาง', 'สูง'] as PriorityLevel[]).map((p) => (
                 <button
@@ -558,9 +606,9 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
           {/* Rating */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
+            <span className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
               ความพึงพอใจการใช้งานที่ผ่านมา
-            </label>
+            </span>
             <div className="flex items-center space-x-1 py-1" role="group" aria-label="คะแนนความพึงพอใจการใช้งานที่ผ่านมา">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button

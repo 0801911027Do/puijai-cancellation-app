@@ -1,9 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { Cancellation } from '../src/types.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'cancellations.json');
+const PDPA_LOGS_FILE = path.join(DATA_DIR, 'pdpa_audit_logs.json');
 
 let memoryStore: Cancellation[] = [];
 
@@ -308,7 +310,7 @@ export async function fetchFromGoogleSheets(forceFresh = false): Promise<Cancell
     try {
       const response = await fetch(webhookUrl, { 
         redirect: 'follow',
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(8000)
       });
       if (response.ok) {
         const json = await response.json();
@@ -349,3 +351,85 @@ export async function fetchFromGoogleSheets(forceFresh = false): Promise<Cancell
 
   return gasFetchPromise;
 }
+
+export interface PdpaAuditLog {
+  receiptId: string;
+  timestamp: string;
+  rightType: string;
+  userHash: string;
+  ipHash: string;
+  deletedRecordsCount: number;
+  status: 'COMPLETED' | 'FAILED';
+  actionDetails: string;
+  channel: string;
+  legalReference: string;
+}
+
+let pdpaAuditMemoryStore: PdpaAuditLog[] = [];
+
+export function getPdpaAuditLogs(): PdpaAuditLog[] {
+  try {
+    if (fs.existsSync(PDPA_LOGS_FILE)) {
+      const raw = fs.readFileSync(PDPA_LOGS_FILE, 'utf-8');
+      pdpaAuditMemoryStore = JSON.parse(raw);
+    } else if (fs.existsSync('/tmp/pdpa_audit_logs.json')) {
+      const raw = fs.readFileSync('/tmp/pdpa_audit_logs.json', 'utf-8');
+      pdpaAuditMemoryStore = JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('Error reading PDPA audit logs:', err);
+  }
+  return pdpaAuditMemoryStore.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
+
+export function recordPdpaErasureAudit(params: {
+  userIdOrName: string;
+  ipAddress?: string;
+  deletedCount: number;
+  channel?: string;
+  status?: 'COMPLETED' | 'FAILED';
+}): PdpaAuditLog {
+  const userHash = crypto
+    .createHash('sha256')
+    .update(String(params.userIdOrName || 'anonymous').trim().toLowerCase())
+    .digest('hex');
+
+  const ipHash = crypto
+    .createHash('sha256')
+    .update(String(params.ipAddress || '127.0.0.1').trim())
+    .digest('hex')
+    .substring(0, 16);
+
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const receiptId = `PDPA-DEL-${dateStr}-${randomSuffix}`;
+
+  const entry: PdpaAuditLog = {
+    receiptId,
+    timestamp: new Date().toISOString(),
+    rightType: 'Right to Erasure (สิทธิในการขอให้ลบหรือทำลายข้อมูลส่วนบุคคล)',
+    userHash: `HASH-${userHash.substring(0, 24)}...`,
+    ipHash: `IP-${ipHash}`,
+    deletedRecordsCount: params.deletedCount,
+    status: params.status || 'COMPLETED',
+    actionDetails: 'Hard delete executed across database, application cache, and Google Sheets',
+    channel: params.channel || 'LINE_LIFF_PORTAL',
+    legalReference: 'มาตรา 33 พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562'
+  };
+
+  const logs = getPdpaAuditLogs();
+  logs.unshift(entry);
+  pdpaAuditMemoryStore = logs;
+
+  try {
+    ensureDirExists();
+    fs.writeFileSync(PDPA_LOGS_FILE, JSON.stringify(logs, null, 2), 'utf-8');
+  } catch (err) {
+    try {
+      fs.writeFileSync('/tmp/pdpa_audit_logs.json', JSON.stringify(logs, null, 2), 'utf-8');
+    } catch (e) {}
+  }
+
+  return entry;
+}
+

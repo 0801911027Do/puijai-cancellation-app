@@ -40,3 +40,25 @@ export interface AIAnalysisResult {
   retentionSuggestions: string[];
   overallSentiment: string;
 }
+
+export interface PdpaDeletionReceipt {
+  receiptId: string;
+  timestamp: string;
+  exerciseRight: string;
+  legalReference: string;
+  status: 'COMPLETED' | 'FAILED';
+}
+
+export interface PdpaAuditLog {
+  receiptId: string;
+  timestamp: string;
+  rightType: string;
+  userHash: string;
+  ipHash: string;
+  deletedRecordsCount: number;
+  status: 'COMPLETED' | 'FAILED';
+  actionDetails: string;
+  channel: string;
+  legalReference: string;
+}
+

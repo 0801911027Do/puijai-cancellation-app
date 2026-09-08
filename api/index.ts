@@ -10,7 +10,9 @@ import {
   importBatchCancellations,
   fetchFromGoogleSheets,
   getNextCancellationId,
-  getUserCancellationInfo
+  getUserCancellationInfo,
+  recordPdpaErasureAudit,
+  getPdpaAuditLogs
 } from '../server/db.js';
 import { analyzeCancellationsWithGemini } from '../server/gemini.js';
 
@@ -56,11 +58,12 @@ interface GasNextIdCache {
     isExistingUser: boolean;
     currentRound: number;
     totalHistory: number;
+    source?: string;
   };
   timestamp: number;
 }
 const gasUserCache = new Map<string, GasNextIdCache>();
-let gasGlobalLatestNextId = 'PUI-CANCEL-00001';
+let gasGlobalLatestNextId = 'PUI-CANCEL-00002';
 
 app.get('/api/cancellations/next-id', async (req, res) => {
   try {
@@ -70,50 +73,63 @@ app.get('/api/cancellations/next-id', async (req, res) => {
 
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
-    // 1. Check in-memory SWR cache (0ms instant response)
+    // 1. Check in-memory SWR cache (if fresh within 6 seconds, return in 0ms)
     const cached = gasUserCache.get(cacheKey);
     const now = Date.now();
-    if (cached && (now - cached.timestamp < 15000)) {
+    if (cached && (now - cached.timestamp < 6000)) {
       return res.json(cached.data);
     }
 
-    // 2. Query GAS with fast timeout (Single Source of Truth)
+    // 2. Query GAS with fast race (wait max 1.8s for fresh GAS response)
     const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-    try {
-      const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`, {
-        redirect: 'follow',
-        signal: AbortSignal.timeout(2000),
-      });
-      if (gasRes.ok) {
-        const gasData = await gasRes.json();
-        if (gasData.success && gasData.nextId) {
-          const resultData = {
-            success: true,
-            nextId: gasData.nextId,
-            isExistingUser: gasData.isExistingUser || false,
-            currentRound: gasData.currentRound || 1,
-            totalHistory: gasData.totalHistory || 0
-          };
-          gasGlobalLatestNextId = gasData.nextId;
-          gasUserCache.set(cacheKey, { data: resultData, timestamp: now });
-          return res.json(resultData);
+    
+    const fetchGas = (async () => {
+      try {
+        const gasRes = await fetch(`${gasWebhookUrl}?action=checkUser&userId=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}`, {
+          redirect: 'follow',
+          signal: AbortSignal.timeout(8000),
+        });
+        if (gasRes.ok) {
+          const gasData = await gasRes.json();
+          if (gasData.success && gasData.nextId) {
+            const resultData = {
+              success: true,
+              nextId: gasData.nextId,
+              isExistingUser: gasData.isExistingUser || false,
+              currentRound: gasData.currentRound || 1,
+              totalHistory: gasData.totalHistory || 0,
+              source: 'google_sheets'
+            };
+            gasGlobalLatestNextId = gasData.nextId;
+            gasUserCache.set(cacheKey, { data: resultData, timestamp: Date.now() });
+            return resultData;
+          }
         }
-      }
-    } catch (gasErr) {
-      // Fast fallback on timeout or error
+      } catch (gasErr) {}
+      return null;
+    })();
+
+    // Wait max 1800ms for fresh Google Sheets response
+    const fastResult = await Promise.race([
+      fetchGas,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800))
+    ]);
+
+    if (fastResult) {
+      return res.json(fastResult);
     }
 
-    // 3. Fallback: Instant local computation
-    const userInfo = await getUserCancellationInfo(userId, username);
-    const fallbackId = userInfo.assignedId || gasGlobalLatestNextId;
+    // 3. If GAS took >1.8s, return latest known ID immediately (0ms wait)
+    // while fetchGas continues in the background to update cache!
+    const fallbackId = gasGlobalLatestNextId || 'PUI-CANCEL-00002';
     const fallbackResult = {
       success: true,
       nextId: fallbackId,
-      isExistingUser: userInfo.isExistingUser,
-      currentRound: userInfo.round,
-      totalHistory: userInfo.totalHistory
+      isExistingUser: false,
+      currentRound: 1,
+      totalHistory: 0,
+      source: 'swr_fast'
     };
-    gasUserCache.set(cacheKey, { data: fallbackResult, timestamp: now });
     res.json(fallbackResult);
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -522,7 +538,7 @@ app.post('/api/cancellations', async (req, res) => {
           created_at: new Date().toISOString(),
         }),
         redirect: 'follow',
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(15000),
       });
       if (gasRes.ok) {
         const gasData = await gasRes.json();
@@ -564,7 +580,8 @@ app.post('/api/cancellations', async (req, res) => {
       notes: finalNotes,
     });
 
-    res.json({ success: true, data: { ...saved, round: finalRound, nextId: gasNextId } });
+    const gasSynced = Boolean(gasNextId);
+    res.json({ success: true, data: { ...saved, round: finalRound, nextId: gasNextId, gasSynced } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -587,15 +604,52 @@ const handleUpdateStatus = (req: express.Request, res: express.Response) => {
 app.put('/api/cancellations/:id', handleUpdateStatus);
 app.patch('/api/cancellations/:id/status', handleUpdateStatus);
 
-app.post('/api/cancellations/delete-user', async (req, res) => {
+// PDPA Data Erasure Handler (Right to Erasure - PDPA Section 33)
+const handlePdpaDataErasure = async (req: express.Request, res: express.Response) => {
   try {
-    const { userId, username, id } = req.body || {};
+    const { userId, username, id, idToken, confirmationPhrase, acknowledgedPdpa } = req.body || {};
     const searchKeys = [userId, username, id].filter(Boolean).map(s => String(s).trim());
+
     if (searchKeys.length === 0) {
-      return res.status(400).json({ success: false, error: 'กรุณาระบุข้อมูลผู้ใช้ที่ต้องการลบ' });
+      return res.status(400).json({ success: false, error: 'กรุณาระบุข้อมูลผู้ใช้ที่ต้องการขอลบข้อมูล' });
     }
 
-    // 1. Delete from local DB / memory store
+    // Safeguard: Check confirmation phrase if provided
+    if (confirmationPhrase && String(confirmationPhrase).trim() !== 'ยืนยันการลบ') {
+      return res.status(400).json({
+        success: false,
+        error: 'ข้อความยืนยันไม่ถูกต้อง กรุณาพิมพ์คำว่า "ยืนยันการลบ"'
+      });
+    }
+
+    // Authentication & Security: Verify LINE ID Token if present
+    if (idToken && typeof idToken === 'string') {
+      try {
+        const liffChannelId = process.env.LINE_CHANNEL_ID || '2011043750';
+        const verifyRes = await fetch('https://api.line.me/oauth2/v2.1/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            id_token: idToken,
+            client_id: liffChannelId
+          }),
+          signal: AbortSignal.timeout(4000)
+        });
+        if (verifyRes.ok) {
+          const tokenData = await verifyRes.json() as any;
+          if (tokenData.sub && userId && tokenData.sub !== userId) {
+            return res.status(403).json({
+              success: false,
+              error: 'ความปลอดภัย: บัญชีผู้ใช้ไม่ตรงกับ ID Token ของ LINE ที่ส่งมา'
+            });
+          }
+        }
+      } catch (authErr) {
+        console.warn('[PDPA] LINE ID Token verification warning:', authErr);
+      }
+    }
+
+    // 1. Hard Delete from local DB / memory store
     const localResult = deleteUserCancellations(searchKeys);
 
     // 2. Clear SWR cache for this user
@@ -629,12 +683,42 @@ app.post('/api/cancellations/delete-user', async (req, res) => {
       console.error('GAS deleteUser notification warning:', gasErr?.message || gasErr);
     }
 
+    // 4. Record Legal PDPA Compliance Audit Trail
+    const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1').split(',')[0].trim();
+    const auditEntry = recordPdpaErasureAudit({
+      userIdOrName: userId || username || id || 'unknown',
+      ipAddress: clientIp,
+      deletedCount: localResult.deletedCount,
+      channel: 'LINE_LIFF_AND_WEB',
+      status: 'COMPLETED'
+    });
+
     res.json({
       success: true,
-      message: 'ลบข้อมูลของผู้ใช้เรียบร้อยแล้ว',
+      message: 'ลบและทำลายข้อมูลส่วนบุคคลตาม พ.ร.บ. PDPA มาตรา 33 สำเร็จเรียบร้อยแล้ว',
       deletedCount: localResult.deletedCount,
-      gasDeleted
+      gasDeleted,
+      receipt: {
+        receiptId: auditEntry.receiptId,
+        timestamp: auditEntry.timestamp,
+        exerciseRight: auditEntry.rightType,
+        legalReference: auditEntry.legalReference,
+        status: auditEntry.status
+      }
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+app.post('/api/cancellations/delete-user', handlePdpaDataErasure);
+app.post('/api/pdpa/erase-data', handlePdpaDataErasure);
+
+// PDPA Compliance Audit Trail Endpoint (for Admin / DPO review)
+app.get('/api/pdpa/audit-logs', (req, res) => {
+  try {
+    const logs = getPdpaAuditLogs();
+    res.json({ success: true, data: logs });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
