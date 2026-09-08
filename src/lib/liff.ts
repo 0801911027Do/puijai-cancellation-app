@@ -219,18 +219,10 @@ export async function sendLiffSummaryMessage(cancellation: {
   try {
     const initialized = await initLiff();
     if (initialized && liffInstance && liffInstance.isInClient()) {
-      const finalRoundNumber = cancellation.round && cancellation.round > 0
-        ? cancellation.round
-        : (cancellation.notes?.match(/รอบที่\s*(\d+)/)?.[1]
-            ? parseInt(cancellation.notes.match(/รอบที่\s*(\d+)/)![1], 10)
-            : 1);
-
-      const roundText = `\nรอบการยกเลิก: รอบที่ ${finalRoundNumber}`;
-
       await liffInstance.sendMessages([
         {
           type: 'text',
-          text: `📋 [แจ้งเตือน: บันทึกขอยกเลิกสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}${roundText}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
+          text: `📋 [แจ้งเตือน: บันทึกขอยกเลิกสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
         }
       ]);
       return true;

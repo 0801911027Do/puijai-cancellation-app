@@ -26,6 +26,9 @@ export default function App() {
       if (path === '/admin' || path.startsWith('/admin') || search.includes('admin=true')) {
         return 'admin';
       }
+      if (search.includes('thankyou=true') || path === '/thankyou') {
+        return 'thankyou';
+      }
     }
     return 'user';
   });
@@ -62,6 +65,8 @@ export default function App() {
       const search = window.location.search;
       if (path === '/admin' || path.startsWith('/admin') || search.includes('admin=true')) {
         setCurrentView('admin');
+      } else if (search.includes('thankyou=true') || path === '/thankyou') {
+        setCurrentView('thankyou');
       } else {
         setCurrentView('user');
       }
@@ -132,9 +137,16 @@ export default function App() {
             <div className="w-8 h-8 border-3 border-pink-500 border-t-transparent rounded-full animate-spin" />
           </div>
         }>
-          {currentView === 'thankyou' && lastSubmittedData && (
+          {currentView === 'thankyou' && (
             <ThankYouView
-              cancellationData={lastSubmittedData}
+              cancellationData={lastSubmittedData || {
+                id: 'PUI-CANCEL-00001',
+                line_user_id: 'U1234567890abcdef',
+                username: 'น้องปุยใจ ทดสอบระบบ',
+                category: 'ข้อมูลส่วนตัวและความเป็นส่วนตัว',
+                reason: 'ต้องการลบประวัติการแชทตามคำขอ',
+                created_at: new Date().toISOString(),
+              }}
               onResetForm={() => changeView('user')}
               onViewAdmin={() => changeView('admin')}
             />

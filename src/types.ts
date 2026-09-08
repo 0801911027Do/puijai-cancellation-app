@@ -22,6 +22,8 @@ export interface Cancellation {
   status: CancellationStatus;
   created_at: string; // ISO date string
   notes?: string;
+  round?: number;
+  roundLabel?: string;
 }
 
 export interface CancellationAnalytics {

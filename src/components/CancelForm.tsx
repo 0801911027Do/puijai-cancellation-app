@@ -46,6 +46,16 @@ const CATEGORIES: CategoryItem[] = [
   },
 ];
 
+// Helper to increment PUI-CANCEL-XXXXX ticket sequence
+export const getIncrementedId = (currentId: string): string => {
+  const match = String(currentId || '').match(/PUI-CANCEL-(\d+)/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    return `PUI-CANCEL-${String(num + 1).padStart(5, '0')}`;
+  }
+  return 'PUI-CANCEL-00001';
+};
+
 // Instant cached user status helper (0ms before first paint - Real-time SWR)
 const getInitialUserStatus = () => {
   let urlUserId = '';
@@ -89,7 +99,7 @@ const getInitialUserStatus = () => {
       }
     }
 
-    // 2. Check global next ID or last submitted ID
+    // 2. Check global next ID or last submitted ID (incremented)
     const globalNextId = localStorage.getItem('puijai_global_next_id');
     if (globalNextId) {
       return {
@@ -102,7 +112,7 @@ const getInitialUserStatus = () => {
     const lastId = localStorage.getItem('puijai_last_submitted_id');
     if (lastId) {
       return {
-        referenceId: lastId,
+        referenceId: getIncrementedId(lastId),
         userRound: 1,
         previousCount: 0,
       };
@@ -110,7 +120,7 @@ const getInitialUserStatus = () => {
   } catch (e) {}
 
   return {
-    referenceId: 'PUI-CANCEL-00002',
+    referenceId: 'PUI-CANCEL-00001',
     userRound: 1,
     previousCount: 0,
   };
@@ -167,7 +177,8 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
       // Realtime SWR: Query ticket reference ID and round directly from Google Sheet proxy
       try {
-        const apiRes = await fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}`, {
+        const apiRes = await fetch(`/api/cancellations/next-id?userId=${encodeURIComponent(targetUserId)}&username=${encodeURIComponent(targetUsername)}&_t=${Date.now()}`, {
+          cache: 'no-store',
           signal: AbortSignal.timeout(5000)
         });
 
@@ -248,7 +259,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     const finalUsername = userProfile?.displayName || persistentKey;
 
     const payload = {
-      id: referenceId || 'PUI-CANCEL-00001',
+      id: referenceId,
       userId: finalUserId,
       username: finalUsername,
       category,
@@ -256,7 +267,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       priority,
       rating,
       round: userRound,
-      notes: `รอบที่ ${userRound}`,
+      notes: '',
       created_at: new Date().toISOString(),
     };
 
@@ -321,11 +332,15 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       await new Promise((resolve) => setTimeout(resolve, 800 - elapsedTime));
     }
 
+    // Compute next ticket sequence ID so that UID is not locked to old request ID
+    const nextTicketId = submittedRecord?.nextId || getIncrementedId(finalResult.id || referenceId);
+
     // Save to localStorage
     try {
       localStorage.setItem('puijai_last_submitted_id', finalResult.id);
+      localStorage.setItem('puijai_global_next_id', nextTicketId);
       const nextRoundInfo = {
-        nextId: finalResult.id,
+        nextId: nextTicketId,
         currentRound: (finalResult.round || userRound) + 1,
         totalHistory: finalResult.round || userRound,
       };
@@ -333,6 +348,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       if (finalUsername && finalUsername !== finalUserId) {
         localStorage.setItem(`puijai_sync_status_${finalUsername}`, JSON.stringify(nextRoundInfo));
       }
+      localStorage.setItem('puijai_last_sync_status', JSON.stringify(nextRoundInfo));
     } catch (e) {}
 
     // Send LINE summary message (non-blocking)
@@ -342,11 +358,22 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       category: finalResult.category || category,
       reason: (finalResult.reason || reason).trim(),
       round: finalResult.round || userRound,
-      notes: finalResult.notes || `รอบที่ ${userRound}`,
+      notes: finalResult.notes || '',
     }).catch(() => {});
 
     setIsSubmitting(false);
     onSubmitSuccess(finalResult);
+
+    // Advance ticket reference ID and user round for next submission
+    setReferenceId(nextTicketId);
+    setUserRound((finalResult.round || userRound) + 1);
+
+    // Reset form fields for next submission
+    setCategory('สลับไปใช้บริการอื่น');
+    setReason('');
+    setPriority('กลาง');
+    setRating(3);
+    setConfirmed(false);
   };
 
   return (
@@ -386,21 +413,6 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             </span>
           </div>
 
-          {userRound > 1 && (
-            <div className="mb-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 px-3 sm:px-3.5 py-1 sm:py-1.5 bg-white/95 backdrop-blur-md rounded-2xl sm:rounded-full text-xs shadow-sm border border-white/80 transition-all max-w-full">
-              <span className="inline-flex items-center space-x-1.5 shrink-0">
-                <span className="w-2 h-2 rounded-full bg-pink-500 shrink-0"></span>
-                <span className="font-bold text-pink-700 whitespace-nowrap text-xs">
-                  คำขอยกเลิก: รอบที่ {userRound}
-                </span>
-              </span>
-              <span className="text-slate-400 font-normal hidden sm:inline">|</span>
-              <span className="text-slate-700 font-medium whitespace-nowrap text-[11px] sm:text-xs">
-                เคยยกเลิกมาแล้ว {previousSubmissionsCount} ครั้ง
-              </span>
-            </div>
-          )}
-          
           <h2 className="text-[22px] sm:text-[28px] font-extrabold tracking-tight leading-snug sm:leading-tight drop-shadow-sm text-white mb-2 sm:mb-3">
             <span className="inline-block">แบบฟอร์มขอยกเลิก</span> <span className="inline-block">แชทบอท "Puijai"</span>
           </h2>
@@ -413,22 +425,16 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-pink-100 p-4 sm:p-8 shadow-xs space-y-5 sm:space-y-6">
-        {/* Reference Ticket & Round Badge */}
+        {/* Reference Ticket */}
         <div className="bg-gradient-to-r from-sky-50/80 via-white to-pink-50/70 border border-sky-200/80 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center space-x-1.5 min-w-0">
-              <Sparkles className="w-4 h-4 text-pink-500 shrink-0" />
-              <span className="text-slate-700 font-semibold whitespace-nowrap shrink-0">
-                รหัสคำขอ:
-              </span>
-              <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
-                {referenceId || 'PUI-CANCEL-00001'}
-              </strong>
-            </div>
-
-            <span className="text-[10px] sm:text-xs font-bold px-2.5 py-0.5 bg-pink-100 text-pink-700 rounded-full border border-pink-200 whitespace-nowrap shrink-0 shadow-2xs ml-auto transition-all duration-200">
-              รอบที่ {userRound}
+          <div className="flex items-center space-x-1.5 text-xs">
+            <Sparkles className="w-4 h-4 text-pink-500 shrink-0" />
+            <span className="text-slate-700 font-semibold whitespace-nowrap shrink-0">
+              รหัสคำขอ:
             </span>
+            <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
+              {referenceId || 'PUI-CANCEL-00001'}
+            </strong>
           </div>
         </div>
 

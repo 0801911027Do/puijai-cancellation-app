@@ -127,22 +127,14 @@ export async function getUserCancellationInfo(userIdentifier?: string, altIdenti
     }
   }
 
-  if (existingId || userHistoryCount > 0) {
-    return {
-      assignedId: existingId || `PUI-CANCEL-${String(Math.max(maxSeq + 1, 1)).padStart(5, '0')}`,
-      isExistingUser: true,
-      round: userHistoryCount + 1,
-      totalHistory: userHistoryCount,
-    };
-  }
-
   const nextSeq = Math.max(maxSeq + 1, 1);
   const newId = `PUI-CANCEL-${String(nextSeq).padStart(5, '0')}`;
+
   return {
     assignedId: newId,
-    isExistingUser: false,
-    round: 1,
-    totalHistory: 0,
+    isExistingUser: userHistoryCount > 0,
+    round: userHistoryCount + 1,
+    totalHistory: userHistoryCount,
   };
 }
 
@@ -171,7 +163,8 @@ export function getNextCancellationIdSync(): string {
 
 export function saveCancellation(data: Omit<Cancellation, 'id' | 'created_at' | 'status'> & { id?: string }): Cancellation {
   const current = getAllCancellations();
-  const nextId = data.id && data.id.startsWith('PUI-CANCEL-') ? data.id : getNextCancellationIdSync();
+  const idAlreadyTaken = Boolean(data.id && current.some(c => c.id === data.id));
+  const nextId = (data.id && data.id.startsWith('PUI-CANCEL-') && !idAlreadyTaken) ? data.id : getNextCancellationIdSync();
   const newRecord: Cancellation = {
     ...data,
     id: nextId,
@@ -208,6 +201,73 @@ export function deleteCancellation(id: string): boolean {
   ensureDirExists();
   fs.writeFileSync(DB_FILE, JSON.stringify(filtered, null, 2), 'utf-8');
   return true;
+}
+
+export function deleteUserCancellations(userKey: string | string[]): { success: boolean; deletedCount: number } {
+  const current = getAllCancellations();
+  const rawKeys = Array.isArray(userKey) ? userKey : [userKey];
+  const keys = new Set<string>();
+  
+  for (const k of rawKeys) {
+    if (k) {
+      const lower = String(k).trim().toLowerCase();
+      if (lower && lower !== 'line-device-01') {
+        keys.add(lower);
+        const stripped = lower.replace(/^\[uid:/i, '').replace(/\[|\]/g, '').trim();
+        if (stripped) keys.add(stripped);
+      }
+    }
+  }
+
+  if (keys.size === 0) {
+    return { success: false, deletedCount: 0 };
+  }
+
+  const remaining: Cancellation[] = [];
+  let deletedCount = 0;
+
+  for (const item of current) {
+    const itemUser = String(item.username || '').trim().toLowerCase();
+    const itemUserId = String((item as any).userId || '').trim().toLowerCase();
+    const itemNotes = String(item.notes || '').trim().toLowerCase();
+    const itemId = String(item.id || '').trim().toLowerCase();
+
+    let matched = false;
+    for (const k of keys) {
+      if (
+        itemUser === k ||
+        itemUser.includes(k) ||
+        itemUserId === k ||
+        itemUserId.includes(k) ||
+        itemNotes.includes(k) ||
+        itemId === k
+      ) {
+        matched = true;
+        break;
+      }
+    }
+
+    if (matched) {
+      deletedCount++;
+    } else {
+      remaining.push(item);
+    }
+  }
+
+  if (deletedCount > 0) {
+    safeWriteFileSync(remaining);
+    gasCacheData = gasCacheData.filter(item => {
+      const itemUser = String(item.username || '').trim().toLowerCase();
+      const itemUserId = String((item as any).userId || '').trim().toLowerCase();
+      const itemNotes = String(item.notes || '').trim().toLowerCase();
+      const itemId = String(item.id || '').trim().toLowerCase();
+      return !Array.from(keys).some(k => 
+        itemUser === k || itemUser.includes(k) || itemUserId === k || itemNotes.includes(k) || itemId === k
+      );
+    });
+  }
+
+  return { success: true, deletedCount };
 }
 
 export function resetToSampleData(): Cancellation[] {
