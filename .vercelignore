@@ -1,0 +1,7 @@
+node_modules
+data/
+dist/
+test-*.png
+*.log
+.git
+clean_images.py
