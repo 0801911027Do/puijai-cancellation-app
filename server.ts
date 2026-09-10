@@ -781,6 +781,14 @@ async function startServer() {
     }
   });
 
+  // Aggressive browser caching for static assets (images, webp, png, fonts)
+  app.use((req, res, next) => {
+    if (req.url.match(/\.(webp|png|jpg|jpeg|gif|svg|ico|woff2?)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    next();
+  });
+
   // Vite development middleware or static production serving
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

@@ -34,7 +34,9 @@ import {
   ThumbsUp,
   UserPlus,
   Ban,
-  Wifi
+  Wifi,
+  ChevronDown,
+  ArrowDown
 } from 'lucide-react';
 import { closeLiffWindow, getCachedLiffProfile, getLiffIdToken } from '../lib/liff';
 
@@ -310,6 +312,34 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
   const [activeGuideStep, setActiveGuideStep] = useState<number>(1);
   const [showAllSteps, setShowAllSteps] = useState<boolean>(true);
 
+  // Reference and highlight for data deletion section
+  const deleteSectionRef = React.useRef<HTMLDivElement>(null);
+  const [isHighlightingDeleteSection, setIsHighlightingDeleteSection] = useState(false);
+
+  const scrollToDeleteSection = () => {
+    if (deleteSectionRef.current) {
+      deleteSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setIsHighlightingDeleteSection(true);
+      setTimeout(() => setIsHighlightingDeleteSection(false), 2500);
+    }
+  };
+
+  // Pre-load all 4 guide images into memory immediately on component mount
+  useEffect(() => {
+    const urls = [
+      '/line-step1.webp?v=8',
+      '/line-step2.webp?v=8',
+      '/line-step3.webp?v=8',
+      '/line-step4.webp?v=8',
+    ];
+    if (typeof window !== 'undefined') {
+      urls.forEach((url) => {
+        const img = new window.Image();
+        img.src = url;
+      });
+    }
+  }, []);
+
   // PDPA 2-Step Confirmation & Certificate States
   const [ackPdpa1, setAckPdpa1] = useState(false);
   const [ackPdpa2, setAckPdpa2] = useState(false);
@@ -429,7 +459,7 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
 
   return (
-    <div className="max-w-xl mx-auto py-8 sm:py-12 px-4">
+    <div className="max-w-xl mx-auto py-8 sm:py-12 px-4 pb-28 sm:pb-32">
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xl text-center space-y-6">
         {/* Success Icon Badge */}
         <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner ring-4 ring-emerald-50">
@@ -445,6 +475,112 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
             เราได้รับและบันทึกคำขอยกเลิกบริการเรียบร้อยแล้ว
           </p>
         </div>
+
+        {/* 2-Step Progress Indicator: Solves the false sense of completion */}
+        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 text-left">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold mb-2">
+            <span className="text-slate-600 font-bold">ขั้นตอนการดำเนินการ:</span>
+            <span className={isDeleted ? "text-emerald-700 font-extrabold" : "text-amber-700 font-extrabold"}>
+              {isDeleted ? "เสร็จสิ้นครบทุกขั้นตอน (2/2) ✓" : "รอเลือกขั้นตอนที่ 2 (1/2) ⚠️"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Step 1 */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs">
+                ✓
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">สเต็ป 1 (สำเร็จ)</div>
+                <div className="text-xs font-extrabold text-emerald-950 truncate">บันทึกคำขอยกเลิก</div>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!isDeleted) {
+                  scrollToDeleteSection();
+                }
+              }}
+              className={`rounded-xl p-2.5 flex items-center space-x-2 border transition-all text-left cursor-pointer ${
+                isDeleted
+                  ? "bg-emerald-50 border-emerald-200"
+                  : "bg-rose-50 border-rose-300 ring-2 ring-rose-400/40 hover:bg-rose-100/70"
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-xs ${
+                  isDeleted ? "bg-emerald-600 text-white" : "bg-rose-600 text-white animate-pulse"
+                }`}
+              >
+                {isDeleted ? "✓" : "2"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className={`text-[10px] font-bold uppercase tracking-wider ${isDeleted ? "text-emerald-700" : "text-rose-700"}`}>
+                  {isDeleted ? "สเต็ป 2 (สำเร็จ)" : "สเต็ป 2 (สำคัญ)"}
+                </div>
+                <div className={`text-xs font-extrabold truncate ${isDeleted ? "text-emerald-950" : "text-rose-950"}`}>
+                  {isDeleted ? "ลบข้อมูลเรียบร้อย" : "ลบข้อมูลและแชท"}
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Top Attention-Grabbing PDPA Action Card (Immediately above the fold!) */}
+        {!isDeleted ? (
+          <div className="bg-gradient-to-br from-rose-50 via-red-50/50 to-orange-50 border-2 border-rose-300 rounded-3xl p-4 sm:p-5 text-left shadow-md space-y-3 relative overflow-hidden">
+            <div className="flex items-start space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-500/25">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                  <span className="text-xs sm:text-sm font-extrabold text-rose-950">
+                    ขั้นตอนสำคัญ: สิทธิลบข้อมูลส่วนบุคคล (PDPA)
+                  </span>
+                  <span className="text-[10px] bg-rose-600 text-white font-bold px-2 py-0.5 rounded-full uppercase shrink-0 shadow-2xs">
+                    แนะนำ
+                  </span>
+                </div>
+                <p className="text-xs text-slate-700 mt-1 leading-relaxed">
+                  เมื่อยกเลิกบริการแล้ว ท่านสามารถเลือกที่จะ <strong>ลบข้อมูลแชทและประวัติทั้งหมดออกจากระบบอย่างถาวร</strong> ได้ทันที
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="w-full py-2.5 px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-98 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all shadow-md shadow-rose-900/20 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 shrink-0" />
+                <span>แตะเพื่อลบข้อมูลทันที</span>
+              </button>
+              <button
+                type="button"
+                onClick={scrollToDeleteSection}
+                className="w-full py-2.5 px-3.5 rounded-xl bg-white hover:bg-rose-50 active:scale-98 text-rose-700 font-bold text-xs sm:text-sm border border-rose-300 flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+              >
+                <span>ดูวิธีกดใน LINE (4 สเต็ป)</span>
+                <ChevronDown className="w-4 h-4 shrink-0" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 text-left flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="text-xs">
+              <div className="font-extrabold text-emerald-950">ทำลายข้อมูลส่วนบุคคลตามสิทธิ PDPA สำเร็จแล้ว</div>
+              <div className="text-emerald-800 font-medium">รหัสใบสำคัญ: {deletionReceipt?.receiptId || `PDPA-DEL-${cancellationData.id}`}</div>
+            </div>
+          </div>
+        )}
 
         <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
           <span className="inline-block">คำขอยกเลิกบริการแชทบอท</span> <span className="font-bold text-slate-800 inline-block">"Puijai"</span> <span className="inline-block">รหัสคำขอ</span> <span className="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded border border-pink-200 whitespace-nowrap inline-block">{cancellationData.id}</span> <span className="inline-block">ถูกบันทึกเข้าสู่ฐานข้อมูลเรียบร้อยแล้ว</span> <span className="inline-block">แชทบอทจะหยุดการตอบกลับอัตโนมัติ</span><span className="inline-block">สำหรับบัญชีของคุณ</span> <span className="inline-block">หากในอนาคตต้องการกลับมาใช้งานใหม่</span> <span className="inline-block">น้องปุยใจยินดีต้อนรับเสมอครับ ☁️</span>
@@ -482,8 +618,30 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
           </div>
         </div>
 
+        {/* Subtle Scroll Down Prompt */}
+        {!isDeleted && (
+          <div className="flex justify-center pt-0.5 pb-0.5">
+            <button
+              type="button"
+              onClick={scrollToDeleteSection}
+              className="inline-flex items-center space-x-1.5 text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/80 px-4 py-2 rounded-full border border-rose-200 font-bold transition-colors cursor-pointer shadow-2xs"
+            >
+              <ArrowDown className="w-3.5 h-3.5 animate-bounce" />
+              <span>เลื่อนลงดูวิธีกดลบข้อมูล & คู่มือ 4 สเต็ปใน LINE</span>
+            </button>
+          </div>
+        )}
+
         {/* Interactive Delete Data Card matching user's real LINE screenshot */}
-        <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-sm text-left">
+        <div
+          ref={deleteSectionRef}
+          id="delete-data-section"
+          className={`border rounded-3xl overflow-hidden bg-white shadow-sm text-left transition-all duration-500 ${
+            isHighlightingDeleteSection
+              ? 'border-rose-500 ring-4 ring-rose-400/50 shadow-xl shadow-rose-500/20 scale-[1.01]'
+              : 'border-slate-200'
+          }`}
+        >
           {/* Header matching real LINE '< ลบข้อมูล' */}
           <div className="bg-white border-b border-slate-200 px-3.5 sm:px-4 py-3 flex items-center justify-between gap-2">
             <div className="flex items-center space-x-1.5 sm:space-x-2 text-slate-900 font-bold text-sm sm:text-base shrink-0">
@@ -674,11 +832,19 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
                     {/* Smartphone Mockup: Real Chat Room Screenshot with Exact Click Target */}
                     <RealisticPhoneFrame>
-                      <img
-                        src="/line-step1.png?v=6"
-                        alt="สเต็ป 1: ในห้องแชทน้องปุยใจ แตะไอคอน ☰ มุมขวาบน"
-                        className="w-full h-full object-cover select-none pointer-events-none"
-                      />
+                      <picture>
+                        <source srcSet="/line-step1.webp?v=8" type="image/webp" />
+                        <img
+                          src="/line-step1.png?v=8"
+                          alt="สเต็ป 1: ในห้องแชทน้องปุยใจ แตะไอคอน ☰ มุมขวาบน"
+                          width={475}
+                          height={1024}
+                          loading="eager"
+                          fetchPriority="high"
+                          decoding="async"
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                        />
+                      </picture>
 
                       {/* Live Thailand Status Bar Clock Overlay */}
                       <MockupThaiClockBadge variant="light" />
@@ -732,11 +898,18 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
                     {/* Smartphone Mockup: Real Drawer Screenshot with Exact Click Target */}
                     <RealisticPhoneFrame>
-                      <img
-                        src="/line-step2.png?v=6"
-                        alt="สเต็ป 2: แตะที่ ตั้งค่า"
-                        className="w-full h-full object-cover select-none pointer-events-none"
-                      />
+                      <picture>
+                        <source srcSet="/line-step2.webp?v=8" type="image/webp" />
+                        <img
+                          src="/line-step2.png?v=8"
+                          alt="สเต็ป 2: แตะที่ ตั้งค่า"
+                          width={475}
+                          height={1024}
+                          loading="eager"
+                          decoding="async"
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                        />
+                      </picture>
 
                       {/* Live Thailand Status Bar Clock Overlay */}
                       <MockupThaiClockBadge variant="light" />
@@ -789,11 +962,18 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
                     {/* Smartphone Mockup: Real Settings Screenshot with Exact Click Target */}
                     <RealisticPhoneFrame>
-                      <img
-                        src="/line-step3.png?v=6"
-                        alt="สเต็ป 3: แตะที่ ลบข้อมูล"
-                        className="w-full h-full object-cover select-none pointer-events-none"
-                      />
+                      <picture>
+                        <source srcSet="/line-step3.webp?v=8" type="image/webp" />
+                        <img
+                          src="/line-step3.png?v=8"
+                          alt="สเต็ป 3: แตะที่ ลบข้อมูล"
+                          width={475}
+                          height={1024}
+                          loading="eager"
+                          decoding="async"
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                        />
+                      </picture>
 
                       {/* Live Thailand Status Bar Clock Overlay */}
                       <MockupThaiClockBadge variant="light" />
@@ -846,11 +1026,18 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
                     {/* Smartphone Mockup: Real Delete Screen with Exact Click Target */}
                     <RealisticPhoneFrame>
-                      <img
-                        src="/line-step4.png?v=6"
-                        alt="สเต็ป 4: ลบข้อมูลแชทและข้อความแชททั้งหมด"
-                        className="w-full h-full object-cover select-none pointer-events-none"
-                      />
+                      <picture>
+                        <source srcSet="/line-step4.webp?v=8" type="image/webp" />
+                        <img
+                          src="/line-step4.png?v=8"
+                          alt="สเต็ป 4: ลบข้อมูลแชทและข้อความแชททั้งหมด"
+                          width={475}
+                          height={1024}
+                          loading="eager"
+                          decoding="async"
+                          className="w-full h-full object-cover select-none pointer-events-none"
+                        />
+                      </picture>
 
                       {/* Live Thailand Status Bar Clock Overlay */}
                       <MockupThaiClockBadge variant="light" />
@@ -912,6 +1099,50 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Sticky Floating Bottom Bar for Delete Data Prompt (Always visible on mobile without scrolling!) */}
+      {!isDeleted && (
+        <aside
+          aria-label="แถบแจ้งเตือนการลบข้อมูลส่วนบุคคล"
+          className="fixed bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-auto sm:right-6 sm:max-w-md z-40 animate-in slide-in-from-bottom duration-300 pointer-events-auto"
+        >
+          <div className="bg-slate-900/95 backdrop-blur-md text-white p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-2xl border border-white/20 flex items-center justify-between gap-2 ring-4 ring-rose-500/20">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                <Trash2 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] sm:text-xs font-extrabold text-white truncate flex items-center gap-1.5">
+                  <span>ต้องการลบข้อมูลทั้งหมด?</span>
+                  <span className="text-[9px] bg-rose-500 text-white font-bold px-1.5 py-0.2 rounded-full uppercase">PDPA</span>
+                </div>
+                <div className="text-[10px] sm:text-[11px] text-slate-300 truncate">
+                  แตะเพื่อลบประวัติและแชทออกจากระบบ
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="py-2 px-3 sm:px-3.5 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-extrabold text-xs flex items-center space-x-1 transition-all shadow-md shadow-rose-900/40 cursor-pointer whitespace-nowrap"
+              >
+                <span>ลบข้อมูล</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={scrollToDeleteSection}
+                title="เลื่อนลงไปดูคู่มือ 4 สเต็ป"
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </aside>
+      )}
 
       {/* PDPA Data Erasure Confirmation Modal */}
       {showDeleteModal && (

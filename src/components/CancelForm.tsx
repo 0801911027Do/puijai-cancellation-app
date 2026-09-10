@@ -252,6 +252,21 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       resolveUserStatus(userProfile);
     }, 8000);
 
+    // Pre-warm step guide images in background cache while user fills out form
+    const prefetchStepImages = () => {
+      ['/line-step1.webp?v=8', '/line-step2.webp?v=8', '/line-step3.webp?v=8', '/line-step4.webp?v=8'].forEach((url) => {
+        const img = new window.Image();
+        img.src = url;
+      });
+    };
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(prefetchStepImages);
+      } else {
+        setTimeout(prefetchStepImages, 1200);
+      }
+    }
+
     return () => {
       isMounted = false;
       window.removeEventListener('focus', onWindowActive);
