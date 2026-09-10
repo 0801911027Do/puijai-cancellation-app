@@ -1023,6 +1023,14 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
                       {/* Live Device Battery Status Bar Overlay */}
                       <MockupBatteryBadge variant="light" />
 
+                      {/* EXACT TARGET: ลบข้อมูลแชทและข้อความแชททั้งหมด - กรอบขอบสีแดงพร้อมเอฟเฟกต์กระพริบ */}
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteModal(true)}
+                        className="absolute top-[44.5%] left-[2.5%] w-[95%] h-[8.5%] rounded-2xl border-3 border-rose-600 bg-rose-500/20 ring-4 ring-rose-500/80 shadow-lg shadow-rose-500/60 animate-pulse z-20 cursor-pointer"
+                        title="แตะปุ่มนี้เพื่อลบข้อมูลตาม PDPA"
+                      />
+
                       {/* Bouncing Pointer Tag pointing up to the red button */}
                       <div className="absolute top-[54.5%] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center animate-bounce pointer-events-none w-full px-2">
                         <div className="w-0 h-0 border-x-[7px] border-x-transparent border-b-[9px] border-b-rose-600 drop-shadow-md"></div>
