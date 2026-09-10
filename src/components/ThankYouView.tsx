@@ -487,18 +487,18 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {/* Step 1 */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 sm:p-2.5 flex items-start sm:items-center space-x-1.5 sm:space-x-2">
-              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-0.5 sm:mt-0">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 sm:p-3 flex items-center space-x-2.5 shadow-2xs">
+              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs">
                 ✓
               </div>
               <div className="min-w-0 flex-1 leading-tight">
-                <div className="text-[10px] sm:text-[11px] text-emerald-700 font-bold uppercase tracking-tight">
+                <div className="text-[10.5px] sm:text-[11px] text-emerald-700 font-bold uppercase tracking-tight">
                   สเต็ป 1 (สำเร็จ)
                 </div>
-                <div className="text-[11px] sm:text-xs font-extrabold text-emerald-950 mt-0.5 leading-snug break-words">
-                  บันทึกคำขอยกเลิก
+                <div className="text-xs sm:text-[13px] font-extrabold text-emerald-950 mt-0.5 leading-snug">
+                  บันทึกคำขอยกเลิกเรียบร้อยแล้ว
                 </div>
               </div>
             </div>
@@ -511,14 +511,14 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
                   scrollToDeleteSection();
                 }
               }}
-              className={`rounded-xl p-2 sm:p-2.5 flex items-start sm:items-center space-x-1.5 sm:space-x-2 border transition-all text-left cursor-pointer shadow-2xs hover:shadow-xs group ${
+              className={`rounded-xl p-2.5 sm:p-3 flex items-center space-x-2.5 border transition-all text-left cursor-pointer shadow-2xs hover:shadow-xs group ${
                 isDeleted
                   ? "bg-emerald-50 border-emerald-200"
                   : "bg-rose-50/70 hover:bg-rose-100/90 border-rose-300 ring-1 ring-rose-200"
               }`}
             >
               <div
-                className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-0.5 sm:mt-0 ${
+                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-xs ${
                   isDeleted
                     ? "bg-emerald-600 text-white"
                     : "bg-rose-600 text-white group-hover:scale-105 transition-transform"
@@ -528,23 +528,25 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
               </div>
               <div className="min-w-0 flex-1 leading-tight">
                 <div
-                  className={`text-[10px] sm:text-[11px] font-bold tracking-tight flex items-center justify-between gap-1 ${
+                  className={`text-[10.5px] sm:text-[11px] font-bold tracking-tight flex items-center justify-between gap-1.5 ${
                     isDeleted ? "text-emerald-700" : "text-rose-600"
                   }`}
                 >
-                  <span className="truncate">{isDeleted ? "สเต็ป 2 (สำเร็จ)" : "สเต็ป 2 (ทางเลือก)"}</span>
+                  <span className="whitespace-nowrap font-bold">
+                    {isDeleted ? "สเต็ป 2 (สำเร็จ)" : "สเต็ป 2 (ทางเลือก)"}
+                  </span>
                   {!isDeleted && (
-                    <span className="text-[9px] font-bold bg-rose-200/90 text-rose-800 px-1 py-0.2 rounded shrink-0">
+                    <span className="text-[9.5px] font-bold bg-rose-200/90 text-rose-800 px-1.5 py-0.5 rounded shrink-0">
                       แตะดู
                     </span>
                   )}
                 </div>
                 <div
-                  className={`text-[11px] sm:text-xs font-extrabold mt-0.5 leading-snug break-words flex items-center gap-0.5 ${
+                  className={`text-xs sm:text-[13px] font-extrabold mt-0.5 leading-snug flex items-center gap-1 ${
                     isDeleted ? "text-emerald-950" : "text-rose-950"
                   }`}
                 >
-                  <span>{isDeleted ? "ลบข้อมูลเรียบร้อย" : "ต้องการลบข้อมูลไหม?"}</span>
+                  <span>{isDeleted ? "ลบข้อมูลเรียบร้อยแล้ว" : "ต้องการลบข้อมูลไหม?"}</span>
                   {!isDeleted && (
                     <span className="text-rose-600 group-hover:translate-y-0.5 transition-transform shrink-0">
                       👇
