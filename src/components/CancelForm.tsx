@@ -322,83 +322,18 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       created_at: new Date().toISOString(),
     };
 
-    let submittedRecord: any = null;
-
-    // Ultra-fast parallel race: fire backend API + GAS webhook simultaneously
-    // Show success as soon as ANY backend responds — remaining syncs happen in background
-    const bodyJson = JSON.stringify(payload);
-
-    const apiPromise = fetch('/api/cancellations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: bodyJson,
-      signal: AbortSignal.timeout(5000),
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data) return data.data;
-        }
-        return null;
-      })
-      .catch(() => null);
-
-    const gasPromise = fetch(gasWebhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: bodyJson,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(8000),
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          const gasData = await res.json();
-          if (gasData.success) {
-            return {
-              ...payload,
-              id: gasData.id || payload.id,
-              round: gasData.round || payload.round,
-              status: 'ยกเลิกสำเร็จ',
-              gasSynced: true,
-            };
-          }
-        }
-        return null;
-      })
-      .catch(() => null);
-
-    // Race: whichever responds first wins — don't wait for both
-    try {
-      const results = await Promise.allSettled([apiPromise, gasPromise]);
-      for (const r of results) {
-        if (r.status === 'fulfilled' && r.value) {
-          submittedRecord = { ...submittedRecord, ...r.value };
-        }
-      }
-    } catch (e) {}
-
-    // If both failed, fire a guaranteed no-cors beacon in background
-    if (!submittedRecord) {
-      fetch(gasWebhookUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: bodyJson,
-      }).catch(() => {});
-    }
-
-    // Ensure final result object — instant, no artificial delay
-    const finalResult = submittedRecord || {
+    // Ensure final result object — instant, authoritative pre-computed ID
+    const finalResult = {
       ...payload,
       id: referenceId || 'PUI-CANCEL-00002',
       round: userRound,
       status: 'ยกเลิกสำเร็จ' as const,
     };
 
-    // Compute next ticket sequence ID so that UID is not locked to old request ID
-    const nextTicketId = submittedRecord?.nextId || getIncrementedId(finalResult.id || referenceId);
+    // Compute next ticket sequence ID
+    const nextTicketId = getIncrementedId(finalResult.id || referenceId);
 
-    // Save to localStorage
+    // Save to localStorage immediately (0ms)
     try {
       localStorage.setItem('puijai_last_submitted_id', finalResult.id);
       localStorage.setItem('puijai_global_next_id', nextTicketId);
@@ -423,6 +358,47 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       round: finalResult.round || userRound,
       notes: finalResult.notes || '',
     }).catch(() => {});
+
+    // Asynchronous network sync with keepalive: true (never blocks UI!)
+    const bodyJson = JSON.stringify(payload);
+    fetch('/api/cancellations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: bodyJson,
+      keepalive: true,
+    })
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data?.nextId) {
+            try {
+              localStorage.setItem('puijai_global_next_id', data.data.nextId);
+            } catch (e) {}
+          }
+        } else {
+          // If server API returns error, fire GAS fallback
+          fetch(gasWebhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: bodyJson,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {
+        // Fallback directly to GAS webhook if /api/cancellations network fails
+        fetch(gasWebhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: bodyJson,
+          keepalive: true,
+        }).catch(() => {});
+      });
+
+    // Instant micro-delay for smooth button tactile feedback (150ms)
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
     setIsSubmitting(false);
     onSubmitSuccess(finalResult);

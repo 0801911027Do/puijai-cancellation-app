@@ -92,6 +92,32 @@ export default function App() {
     }
   };
 
+  const [formKey, setFormKey] = useState(0);
+
+  const handleResetForm = () => {
+    setLastSubmittedData(null);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('puijai_last_submitted_id');
+        localStorage.removeItem('puijai_global_next_id');
+        localStorage.removeItem('puijai_last_sync_status');
+        localStorage.removeItem('puijai_registered_cancellation_id');
+        Object.keys(localStorage).forEach((k) => {
+          if (
+            k.startsWith('puijai_sync_status_') ||
+            k.startsWith('puijai_pdpa_receipt_') ||
+            k.startsWith('puijai_client_round_')
+          ) {
+            localStorage.removeItem(k);
+          }
+        });
+        window.history.pushState({}, '', '/');
+      } catch (e) {}
+    }
+    setFormKey((prev) => prev + 1);
+    setCurrentView('user');
+  };
+
   const handleAdminLogout = () => {
     sessionStorage.removeItem('puijai_admin_authed');
     setIsAdminAuthenticated(false);
@@ -129,7 +155,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1">
         {currentView === 'user' && (
-          <CancelForm onSubmitSuccess={handleFormSubmitSuccess} />
+          <CancelForm key={formKey} onSubmitSuccess={handleFormSubmitSuccess} />
         )}
 
         <Suspense fallback={
@@ -147,7 +173,7 @@ export default function App() {
                 reason: 'ต้องการลบประวัติการแชทตามคำขอ',
                 created_at: new Date().toISOString(),
               }}
-              onResetForm={() => changeView('user')}
+              onResetForm={handleResetForm}
               onViewAdmin={() => changeView('admin')}
             />
           )}

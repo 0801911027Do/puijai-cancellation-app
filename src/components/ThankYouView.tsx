@@ -1075,14 +1075,15 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
             * แตะปุ่มนี้เพื่อเปิดห้องแชทน้องปุยใจในแอป LINE บนโทรศัพท์ของคุณโดยตรง แล้วทำตาม 4 ขั้นตอนด้านบนได้สะดวกและรวดเร็ว
           </p>
 
-          <div className="pt-1 flex items-center gap-3">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
             <button
               type="button"
               onClick={onResetForm}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all border border-slate-200 shadow-xs cursor-pointer active:scale-98"
+              title="ล้างข้อมูลและกลับไปหน้าแบบฟอร์มเริ่มต้นใหม่"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-              <span>ยื่นเรื่องใหม่อีกครั้ง</span>
+              <RotateCcw className="w-4 h-4 text-slate-500" />
+              <span>ยื่นเรื่องใหม่อีกครั้ง (ลบข้อมูลกลับไปเริ่มใหม่)</span>
             </button>
           </div>
         </div>
