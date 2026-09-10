@@ -662,19 +662,19 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
             ) : (
               <div className="space-y-4 text-left">
                 {/* Official PDPA Erasure Certificate Box */}
-                <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-sky-50 rounded-2xl border-2 border-emerald-300 p-4 sm:p-5 shadow-sm relative overflow-hidden">
+                <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-sky-50 rounded-2xl border-2 border-emerald-300 p-3.5 sm:p-5 shadow-sm relative">
                   <div className="border-b border-emerald-200/80 pb-3 mb-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="flex items-center space-x-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                          <ShieldCheck className="w-5 h-5" />
+                      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <ShieldCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center space-x-1.5 flex-wrap">
-                            <span className="text-xs sm:text-sm font-extrabold text-emerald-950 tracking-tight whitespace-nowrap">
-                              ใบสำคัญการทำลายข้อมูลส่วนบุคคล
-                            </span>
-                            <span className="text-[10px] bg-emerald-200/90 text-emerald-900 px-1.5 py-0.2 rounded font-bold uppercase shrink-0">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="text-[12px] min-[360px]:text-[12.5px] min-[390px]:text-[13.5px] sm:text-sm font-extrabold text-emerald-950 tracking-tight leading-snug">
+                              <span className="inline-block">ใบสำคัญการทำลาย</span><span className="inline-block">ข้อมูลส่วนบุคคล</span>
+                            </h4>
+                            <span className="text-[9.5px] sm:text-[10px] bg-emerald-200/90 text-emerald-900 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
                               PDPA
                             </span>
                           </div>
@@ -687,9 +687,9 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
                     </div>
 
                     {/* Subtitle spans full width without dropping awkward words */}
-                    <div className="mt-1.5 pl-0 sm:pl-[46px] text-[10.5px] sm:text-[11.5px] text-emerald-800 font-medium leading-normal">
-                      <span className="whitespace-nowrap">พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</span>{' '}
-                      <span className="whitespace-nowrap">(มาตรา 33 - Right to Erasure)</span>
+                    <div className="mt-1.5 pl-0 sm:pl-[44px] text-[10.5px] sm:text-[11.5px] text-emerald-800 font-medium leading-normal">
+                      <span className="inline-block">พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</span>{' '}
+                      <span className="inline-block">(มาตรา 33 - Right to Erasure)</span>
                     </div>
                   </div>
 
