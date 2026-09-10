@@ -451,7 +451,7 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
 
 
   return (
-    <div className="max-w-xl mx-auto py-8 sm:py-12 px-4 pb-16 sm:pb-20">
+    <div className="max-w-xl sm:max-w-2xl mx-auto py-8 sm:py-12 px-4 pb-16 sm:pb-20">
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xl text-center space-y-6">
         {/* Success Icon Badge */}
         <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner ring-4 ring-emerald-50">
@@ -663,24 +663,34 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
               <div className="space-y-4 text-left">
                 {/* Official PDPA Erasure Certificate Box */}
                 <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-sky-50 rounded-2xl border-2 border-emerald-300 p-4 sm:p-5 shadow-sm relative overflow-hidden">
-                  <div className="flex items-center justify-between gap-2 border-b border-emerald-200/80 pb-3 mb-3">
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <ShieldCheck className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs sm:text-sm font-extrabold text-emerald-900 tracking-tight flex items-center gap-1.5 flex-wrap">
-                          <span>ใบสำคัญการทำลายข้อมูลส่วนบุคคล</span>
-                          <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.2 rounded font-bold uppercase">PDPA</span>
+                  <div className="border-b border-emerald-200/80 pb-3 mb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <ShieldCheck className="w-5 h-5" />
                         </div>
-                        <div className="text-[10px] text-emerald-700 font-medium">
-                          พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (มาตรา 33 - Right to Erasure)
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            <span className="text-xs sm:text-sm font-extrabold text-emerald-950 tracking-tight whitespace-nowrap">
+                              ใบสำคัญการทำลายข้อมูลส่วนบุคคล
+                            </span>
+                            <span className="text-[10px] bg-emerald-200/90 text-emerald-900 px-1.5 py-0.2 rounded font-bold uppercase shrink-0">
+                              PDPA
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <span className="text-[10px] sm:text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full whitespace-nowrap shadow-2xs shrink-0 self-start sm:self-center flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>ทำลายข้อมูลสำเร็จ</span>
+                      </span>
                     </div>
-                    <span className="text-[10px] sm:text-xs font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-2xs shrink-0">
-                      ทำลายข้อมูลสำเร็จ
-                    </span>
+
+                    {/* Subtitle spans full width without dropping awkward words */}
+                    <div className="mt-1.5 pl-0 sm:pl-[46px] text-[10.5px] sm:text-[11.5px] text-emerald-800 font-medium leading-normal">
+                      <span className="whitespace-nowrap">พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</span>{' '}
+                      <span className="whitespace-nowrap">(มาตรา 33 - Right to Erasure)</span>
+                    </div>
                   </div>
 
                   <div className="space-y-2 text-xs text-slate-700">
