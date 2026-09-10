@@ -1008,8 +1008,16 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
                     </div>
 
                     {/* Instruction Title: Full width without any squishing or broken words */}
-                    <div className="text-xs sm:text-sm font-bold text-slate-800 leading-normal">
-                      <span className="inline-block">กดที่ปุ่มสีแดง</span> <strong className="text-rose-600 font-extrabold text-sm inline-block">"ลบข้อมูลแชทและข้อความแชททั้งหมด"</strong>
+                    <div className="space-y-1">
+                      <div className="text-xs sm:text-sm font-bold text-slate-800 leading-normal">
+                        <span className="inline-block">แตะที่แถบตัวหนังสือสีแดง</span>{' '}
+                        <strong className="text-rose-600 font-extrabold text-sm sm:text-base inline-block underline decoration-rose-300 underline-offset-2">
+                          "ลบข้อมูลแชทและข้อความแชททั้งหมด"
+                        </strong>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-relaxed">
+                        (เป็นการลบประวัติการสนทนา รูปภาพ และข้อความเก่าทั้งหมดของน้องปุยใจที่ค้างอยู่ในเครื่องโทรศัพท์ของคุณ)
+                      </p>
                     </div>
 
                     {/* Smartphone Mockup: Real Delete Screen with Exact Click Target */}
@@ -1036,23 +1044,51 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
                       {/* EXACT TARGET: ลบข้อมูลแชทและข้อความแชททั้งหมด - กรอบขอบสีแดงพร้อมเอฟเฟกต์กระพริบ */}
                       <button
                         type="button"
-                        onClick={() => setShowDeleteModal(true)}
+                        onClick={handleReturnToLine}
                         className="absolute top-[44.5%] left-[2.5%] w-[95%] h-[8.5%] rounded-2xl border-3 border-rose-600 bg-rose-500/20 ring-4 ring-rose-500/80 shadow-lg shadow-rose-500/60 animate-pulse z-20 cursor-pointer"
-                        title="แตะปุ่มนี้เพื่อลบข้อมูลตาม PDPA"
+                        title="แตะเพื่อเปิดแอป LINE ไปลบประวัติแชทจริงทันที"
                       />
 
                       {/* Bouncing Pointer Tag pointing up to the red button */}
-                      <div className="absolute top-[54.5%] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center animate-bounce pointer-events-none w-full px-2">
-                        <div className="w-0 h-0 border-x-[7px] border-x-transparent border-b-[9px] border-b-rose-600 drop-shadow-md"></div>
-                        <div className="bg-rose-600 text-white text-[9px] sm:text-[10.5px] font-extrabold px-3 py-1.5 rounded-xl shadow-2xl flex items-center justify-center space-x-1.5 max-w-[92%] border border-white/30 text-center leading-tight">
-                          <span className="text-xs shrink-0">👆</span>
-                          <span className="whitespace-normal">4. ในแอป LINE ให้แตะปุ่มสีแดงนี้</span>
+                      <div className="absolute top-[54.0%] left-1/2 -translate-x-1/2 z-20 flex flex-col items-center animate-bounce pointer-events-none w-full px-2">
+                        <div className="w-0 h-0 border-x-[8px] border-x-transparent border-b-[10px] border-b-rose-600 drop-shadow-md"></div>
+                        <div className="bg-rose-600 text-white text-[9.5px] sm:text-[11px] font-extrabold px-3 py-2 rounded-2xl shadow-2xl flex flex-col items-center justify-center max-w-[94%] border border-white/40 text-center leading-snug">
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-xs shrink-0">👆</span>
+                            <span>4. ในแอป LINE ให้แตะที่แถบตัวหนังสือสีแดงนี้</span>
+                          </div>
+                          <span className="text-[8.5px] sm:text-[9.5px] text-rose-100 font-medium mt-0.5">
+                            "ลบข้อมูลแชทและข้อความแชททั้งหมด" เพื่อล้างประวัติการคุยในเครื่อง
+                          </span>
                         </div>
                       </div>
                     </RealisticPhoneFrame>
 
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-center text-xs text-emerald-800 font-semibold">
-                      ✨ เมื่อแตะปุ่มนี้ในแอป LINE แล้ว ข้อความและประวัติการสนทนาบนมือถือของคุณจะถูกลบออกทั้งหมดทันทีครับ
+                    <div className="p-3.5 sm:p-4 bg-gradient-to-br from-rose-50/80 via-pink-50/40 to-emerald-50/60 border-2 border-rose-200/80 rounded-2xl text-xs space-y-2.5 text-slate-700 shadow-xs">
+                      <div className="font-extrabold text-rose-800 text-xs sm:text-sm flex items-center gap-1.5">
+                        <span>💡</span>
+                        <span>คำอธิบายขั้นตอนที่ 4 (สำคัญ):</span>
+                      </div>
+                      <div className="space-y-1.5 text-[11.5px] sm:text-xs leading-relaxed">
+                        <p className="flex items-start gap-1.5">
+                          <span className="text-rose-600 font-bold shrink-0 mt-0.5">•</span>
+                          <span>
+                            <strong>ปุ่มนี้ทำอะไร?:</strong> เป็นการลบข้อความแชทและรูปภาพที่คุยกับน้องปุยใจที่บันทึกอยู่ในโทรศัพท์ของคุณ เพื่อไม่ให้มีประวัติแชทเก่าค้างอยู่ในเครื่อง
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-1.5">
+                          <span className="text-rose-600 font-bold shrink-0 mt-0.5">•</span>
+                          <span>
+                            <strong>วิธีทำจริง:</strong> แตะปุ่มสีเขียว <strong className="text-emerald-700">"เปิดแอป LINE บนมือถือ"</strong> ด้านล่างนี้ เพื่อเปิดห้องแชทน้องปุยใจในแอป LINE แล้วทำตามภาพขั้นตอนที่ 1 ถึง 4
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-1.5 text-emerald-800 font-semibold bg-emerald-100/60 p-2 rounded-xl border border-emerald-200/80">
+                          <span className="text-emerald-600 font-bold shrink-0">✓</span>
+                          <span>
+                            เมื่อแตะลบเรียบร้อยแล้ว ห้องแชทจะกลับมาว่างเปล่า และระบบน้องปุยใจจะไม่ส่งข้อความอัตโนมัติรบกวนคุณอีกต่อไปครับ
+                          </span>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
