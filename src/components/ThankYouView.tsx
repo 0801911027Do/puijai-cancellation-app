@@ -1083,7 +1083,7 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
               title="ล้างข้อมูลและกลับไปหน้าแบบฟอร์มเริ่มต้นใหม่"
             >
               <RotateCcw className="w-4 h-4 text-slate-500" />
-              <span>ยื่นเรื่องใหม่อีกครั้ง (ลบข้อมูลกลับไปเริ่มใหม่)</span>
+              <span>ยื่นเรื่องใหม่อีกครั้ง</span>
             </button>
           </div>
         </div>
