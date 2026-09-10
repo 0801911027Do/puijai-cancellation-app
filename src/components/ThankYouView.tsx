@@ -468,27 +468,42 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
           </p>
         </div>
 
-        {/* 2-Step Progress Indicator: Clean & Informative */}
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 text-left">
-          <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold mb-2">
-            <span className="text-slate-600 font-bold">ขั้นตอนการดำเนินการ:</span>
-            <span className={isDeleted ? "text-emerald-700 font-extrabold" : "text-slate-600 font-semibold"}>
-              {isDeleted ? "เสร็จสิ้นครบทุกขั้นตอน (2/2) ✓" : "ขั้นตอนที่ 1 สำเร็จ (1/2)"}
-            </span>
+        {/* 2-Step Progress Indicator: Clean, Mobile-friendly & Intriguing */}
+        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 text-left">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold mb-2 gap-1">
+            <span className="text-slate-600 font-bold shrink-0">ขั้นตอนการดำเนินการ:</span>
+            {isDeleted ? (
+              <span className="text-emerald-700 font-extrabold flex items-center gap-1">
+                ✓ เสร็จสิ้นครบ (2/2)
+              </span>
+            ) : (
+              <span className="text-rose-600 font-extrabold flex items-center gap-1">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                </span>
+                <span>มีสเต็ป 2 ด้านล่าง (1/2)</span>
+              </span>
+            )}
           </div>
+
           <div className="grid grid-cols-2 gap-2">
             {/* Step 1 */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 sm:p-2.5 flex items-start sm:items-center space-x-1.5 sm:space-x-2">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-0.5 sm:mt-0">
                 ✓
               </div>
-              <div className="min-w-0">
-                <div className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">สเต็ป 1</div>
-                <div className="text-xs font-extrabold text-emerald-950 truncate">บันทึกคำขอยกเลิก</div>
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="text-[10px] sm:text-[11px] text-emerald-700 font-bold uppercase tracking-tight">
+                  สเต็ป 1 (สำเร็จ)
+                </div>
+                <div className="text-[11px] sm:text-xs font-extrabold text-emerald-950 mt-0.5 leading-snug break-words">
+                  บันทึกคำขอยกเลิก
+                </div>
               </div>
             </div>
 
-            {/* Step 2 */}
+            {/* Step 2 (Interactive Curiosity Trigger) */}
             <button
               type="button"
               onClick={() => {
@@ -496,29 +511,67 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
                   scrollToDeleteSection();
                 }
               }}
-              className={`rounded-xl p-2.5 flex items-center space-x-2 border transition-all text-left cursor-pointer ${
+              className={`rounded-xl p-2 sm:p-2.5 flex items-start sm:items-center space-x-1.5 sm:space-x-2 border transition-all text-left cursor-pointer shadow-2xs hover:shadow-xs group ${
                 isDeleted
                   ? "bg-emerald-50 border-emerald-200"
-                  : "bg-white hover:bg-slate-50 border-slate-200"
+                  : "bg-rose-50/70 hover:bg-rose-100/90 border-rose-300 ring-1 ring-rose-200"
               }`}
             >
               <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-xs ${
-                  isDeleted ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"
+                className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-xs mt-0.5 sm:mt-0 ${
+                  isDeleted
+                    ? "bg-emerald-600 text-white"
+                    : "bg-rose-600 text-white group-hover:scale-105 transition-transform"
                 }`}
               >
                 {isDeleted ? "✓" : "2"}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className={`text-[10px] font-bold uppercase tracking-wider ${isDeleted ? "text-emerald-700" : "text-slate-500"}`}>
-                  {isDeleted ? "สเต็ป 2 (สำเร็จ)" : "สเต็ป 2 (ทางเลือก)"}
+              <div className="min-w-0 flex-1 leading-tight">
+                <div
+                  className={`text-[10px] sm:text-[11px] font-bold tracking-tight flex items-center justify-between gap-1 ${
+                    isDeleted ? "text-emerald-700" : "text-rose-600"
+                  }`}
+                >
+                  <span className="truncate">{isDeleted ? "สเต็ป 2 (สำเร็จ)" : "สเต็ป 2 (ทางเลือก)"}</span>
+                  {!isDeleted && (
+                    <span className="text-[9px] font-bold bg-rose-200/90 text-rose-800 px-1 py-0.2 rounded shrink-0">
+                      แตะดู
+                    </span>
+                  )}
                 </div>
-                <div className={`text-xs font-extrabold truncate ${isDeleted ? "text-emerald-950" : "text-slate-800"}`}>
-                  {isDeleted ? "ลบข้อมูลเรียบร้อย" : "ลบข้อมูลออกจากระบบ"}
+                <div
+                  className={`text-[11px] sm:text-xs font-extrabold mt-0.5 leading-snug break-words flex items-center gap-0.5 ${
+                    isDeleted ? "text-emerald-950" : "text-rose-950"
+                  }`}
+                >
+                  <span>{isDeleted ? "ลบข้อมูลเรียบร้อย" : "ต้องการลบข้อมูลไหม?"}</span>
+                  {!isDeleted && (
+                    <span className="text-rose-600 group-hover:translate-y-0.5 transition-transform shrink-0">
+                      👇
+                    </span>
+                  )}
                 </div>
               </div>
             </button>
           </div>
+
+          {/* Curiosity & Action Cue to prompt users about the deletion section below */}
+          {!isDeleted && (
+            <div
+              onClick={scrollToDeleteSection}
+              className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] sm:text-xs text-slate-600 hover:text-rose-700 cursor-pointer group transition-colors"
+            >
+              <div className="flex items-center space-x-1.5 min-w-0">
+                <span className="text-rose-600 text-sm animate-bounce shrink-0">👇</span>
+                <span className="font-semibold text-slate-700 group-hover:text-rose-800 leading-snug break-words">
+                  มีขั้นตอนลบประวัติและข้อมูลแชทถาวร (PDPA) อยู่ด้านล่าง
+                </span>
+              </div>
+              <span className="text-[10px] sm:text-[11px] font-bold text-rose-600 group-hover:underline whitespace-nowrap shrink-0 ml-1.5 flex items-center">
+                แตะดู &gt;
+              </span>
+            </div>
+          )}
         </div>
 
         <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
