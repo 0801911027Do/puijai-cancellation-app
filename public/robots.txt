@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://puijai-cancellation-app.vercel.app/sitemap.xml
+Sitemap: https://puijai-cancellation.co.th/sitemap.xml

@@ -19,6 +19,17 @@ import { analyzeCancellationsWithGemini } from '../server/gemini.js';
 const app = express();
 app.use(express.json());
 
+// Enable CORS for Cloudflare Pages and cross-origin clients
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 // Admin Authentication API
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body;
