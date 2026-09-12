@@ -93,7 +93,27 @@ export async function initLiff(): Promise<boolean> {
       const liff = await getLiffInstance();
       if (!liff) return false;
 
-      await liff.init({ liffId });
+      // Filter out benign LIFF localhost endpoint mismatch warning during local dev
+      const isLocalDev = typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      if (isLocalDev) {
+        const originalWarn = console.warn;
+        console.warn = (...args: any[]) => {
+          if (typeof args[0] === 'string' && (args[0].includes('liff.init()') || args[0].includes('endpoint URL'))) {
+            return;
+          }
+          originalWarn.apply(console, args);
+        };
+        try {
+          await liff.init({ liffId });
+        } finally {
+          console.warn = originalWarn;
+        }
+      } else {
+        await liff.init({ liffId });
+      }
+
       liffInitialized = true;
       return true;
     } catch (error) {
