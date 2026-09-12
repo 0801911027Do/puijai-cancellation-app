@@ -8,5 +8,5 @@ Puijai Service Cancellation (ระบบศูนย์ขอยกเลิก
 
 ## Links
 
-- [Puijai Cancellation App](https://puijai-cancellation.vercel.app/): Cancellation request portal for LINE AI Chatbot
-- [Sitemap](https://puijai-cancellation.vercel.app/sitemap.xml): XML Sitemap
+- [Puijai Cancellation App](https://puijai-cancellation.com/): Cancellation request portal for LINE AI Chatbot
+- [Sitemap](https://puijai-cancellation.com/sitemap.xml): XML Sitemap
