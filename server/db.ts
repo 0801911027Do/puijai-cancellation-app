@@ -322,19 +322,16 @@ export async function fetchFromGoogleSheets(forceFresh = false): Promise<Cancell
             item.id !== 'PUI-CANCEL-9336'
           );
 
-          // Merge local records and Google Sheets records, avoiding duplicates by id
-          const combinedMap = new Map<string, Cancellation>();
-          for (const item of [...localList, ...filteredData]) {
-            if (item && item.id) {
-              combinedMap.set(item.id, item);
-            }
+          if (filteredData.length > 0) {
+            // Google Sheets is the Single Source of Truth
+            const result = filteredData.sort((a, b) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            gasCacheData = result;
+            gasCacheTimestamp = Date.now();
+            safeWriteFileSync(result);
+            return result;
           }
-          const result = Array.from(combinedMap.values()).sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
-          gasCacheData = result;
-          gasCacheTimestamp = Date.now();
-          return result;
         }
       }
     } catch (err) {

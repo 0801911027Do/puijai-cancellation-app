@@ -20,7 +20,7 @@ export function GoogleSheetsManager({ cancellations, onAutoSyncSpreadsheetIdChan
   });
 
   const [customSheetId, setCustomSheetId] = useState(
-    'https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY/edit?gid=0#gid=0'
+    'https://docs.google.com/spreadsheets/d/1gKkHEsunANN_5OAzVigbFxE5XFf7VRLlYiQA6RgOCIY/edit?gid=633683448#gid=633683448'
   );
   const [isProcessing, setIsProcessing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);

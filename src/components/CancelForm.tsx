@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CancellationCategory, PriorityLevel } from '../types';
-import { AlertTriangle, Send, Info, Star, CheckCircle2, MessageCircle, Sparkles, User, ShieldCheck, Loader2 } from 'lucide-react';
+import { AlertTriangle, Send, Info, Sparkles, ShieldCheck, Loader2 } from 'lucide-react';
 import { sendLiffSummaryMessage, closeLiffWindow, getFastLiffProfile, getCachedLiffProfile, LiffUserProfile } from '../lib/liff';
 
 interface CancelFormProps {
@@ -50,9 +50,13 @@ const CATEGORIES: CategoryItem[] = [
 if (typeof window !== 'undefined') {
   try {
     const legacy = localStorage.getItem('puijai_global_next_id');
-    if (legacy === 'PUI-CANCEL-00003') {
-      localStorage.removeItem('puijai_global_next_id');
-      localStorage.removeItem('puijai_last_sync_status');
+    if (legacy) {
+      const match = legacy.match(/PUI-CANCEL-(\d+)/i);
+      if (match && parseInt(match[1], 10) < 12) {
+        localStorage.removeItem('puijai_global_next_id');
+        localStorage.removeItem('puijai_last_sync_status');
+        localStorage.removeItem('puijai_last_submitted_id');
+      }
     }
   } catch (e) {}
 }
@@ -64,7 +68,7 @@ export const getIncrementedId = (currentId: string): string => {
     const num = parseInt(match[1], 10);
     return `PUI-CANCEL-${String(num + 1).padStart(5, '0')}`;
   }
-  return 'PUI-CANCEL-00001';
+  return 'PUI-CANCEL-00012';
 };
 
 // Instant cached user status helper (0ms before first paint - Real-time SWR)
@@ -100,38 +104,47 @@ const getInitialUserStatus = () => {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.nextId && parsed.nextId !== 'PUI-CANCEL-00003') {
-          return {
-            referenceId: parsed.nextId,
-            userRound: parsed.currentRound || 1,
-            previousCount: parsed.totalHistory || (parsed.currentRound ? parsed.currentRound - 1 : 0),
-          };
+        if (parsed && parsed.nextId) {
+          const match = String(parsed.nextId).match(/PUI-CANCEL-(\d+)/i);
+          if (match && parseInt(match[1], 10) >= 12) {
+            return {
+              referenceId: parsed.nextId,
+              userRound: parsed.currentRound || 1,
+              previousCount: parsed.totalHistory || (parsed.currentRound ? parsed.currentRound - 1 : 0),
+            };
+          }
         }
       }
     }
 
     // 2. Check global next ID or last submitted ID (incremented)
     const globalNextId = localStorage.getItem('puijai_global_next_id');
-    if (globalNextId && globalNextId !== 'PUI-CANCEL-00003') {
-      return {
-        referenceId: globalNextId,
-        userRound: 1,
-        previousCount: 0,
-      };
+    if (globalNextId) {
+      const match = String(globalNextId).match(/PUI-CANCEL-(\d+)/i);
+      if (match && parseInt(match[1], 10) >= 12) {
+        return {
+          referenceId: globalNextId,
+          userRound: 1,
+          previousCount: 0,
+        };
+      }
     }
 
     const lastId = localStorage.getItem('puijai_last_submitted_id');
-    if (lastId && lastId !== 'PUI-CANCEL-00002') {
-      return {
-        referenceId: getIncrementedId(lastId),
-        userRound: 1,
-        previousCount: 0,
-      };
+    if (lastId) {
+      const match = String(lastId).match(/PUI-CANCEL-(\d+)/i);
+      if (match && parseInt(match[1], 10) >= 11) {
+        return {
+          referenceId: getIncrementedId(lastId),
+          userRound: 1,
+          previousCount: 0,
+        };
+      }
     }
   } catch (e) {}
 
   return {
-    referenceId: 'PUI-CANCEL-00002',
+    referenceId: 'PUI-CANCEL-00012',
     userRound: 1,
     previousCount: 0,
   };
@@ -323,7 +336,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     // Ensure final result object — instant, authoritative pre-computed ID
     const finalResult = {
       ...payload,
-      id: referenceId || 'PUI-CANCEL-00002',
+      id: referenceId || 'PUI-CANCEL-00012',
       round: userRound,
       status: 'ยกเลิกสำเร็จ' as const,
     };
@@ -470,7 +483,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               รหัสคำขอ:
             </span>
             <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
-              {referenceId || 'PUI-CANCEL-00002'}
+              {referenceId || 'PUI-CANCEL-00012'}
             </strong>
           </div>
         </div>
@@ -550,80 +563,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           </div>
         </div>
 
-        {/* 3. Priority & Satisfaction Rating */}
-        <div className="space-y-3">
-          <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
-            <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-800 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5" aria-hidden="true">3</span>
-            <span className="min-w-0 flex-1 leading-snug">
-              <span className="inline-block">ระดับความเร่งด่วนและความพึงพอใจ</span> <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full ml-1 inline-block">(เลือกหรือไม่เลือกก็ได้)</span>
-            </span>
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-1">
-            {/* Priority */}
-          <div>
-            <span className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
-              ระดับความเร่งด่วนในการยกเลิก
-            </span>
-            <div className="grid grid-cols-3 gap-2" role="group" aria-label="ระดับความเร่งด่วนในการยกเลิก">
-              {(['ต่ำ', 'กลาง', 'สูง'] as PriorityLevel[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => setPriority(p)}
-                  aria-label={`เลือกระดับความเร่งด่วน ${p}`}
-                  aria-pressed={priority === p}
-                  className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all ${
-                    isSubmitting ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'
-                  } ${
-                    priority === p
-                      ? p === 'สูง'
-                        ? 'bg-rose-700 text-white border-rose-800 shadow-xs'
-                        : p === 'กลาง'
-                        ? 'bg-sky-700 text-white border-sky-800 shadow-xs'
-                        : 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
-                      : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Rating */}
-          <div>
-            <span className="block text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
-              ความพึงพอใจการใช้งานที่ผ่านมา
-            </span>
-            <div className="flex items-center space-x-1 py-1" role="group" aria-label="คะแนนความพึงพอใจการใช้งานที่ผ่านมา">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => setRating(star)}
-                  aria-label={`ให้คะแนน ${star} จาก 5 คะแนน`}
-                  aria-pressed={star <= rating}
-                  className={`p-1 text-amber-500 transition-transform ${
-                    isSubmitting ? 'cursor-not-allowed opacity-70' : 'hover:scale-110 cursor-pointer'
-                  }`}
-                >
-                  <Star
-                    className={`w-6 h-6 ${
-                      star <= rating ? 'fill-amber-500 text-amber-500' : 'text-slate-300'
-                    }`}
-                  />
-                </button>
-              ))}
-              <span className="text-xs text-slate-800 ml-2 font-bold">({rating}/5 คะแนน)</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-        {/* 4. Policy Notice */}
+        {/* Policy Notice */}
         <div className="bg-pink-50/70 p-4 rounded-2xl border border-pink-200 space-y-2.5">
           <div className="flex items-center space-x-2 text-xs font-bold text-pink-950">
             <Info className="w-4 h-4 text-pink-700 shrink-0" />

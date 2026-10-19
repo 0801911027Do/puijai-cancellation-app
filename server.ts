@@ -423,7 +423,7 @@ async function startServer() {
     timestamp: number;
   }
   const gasUserCache = new Map<string, ServerGasNextIdCache>();
-  let gasGlobalLatestNextId = 'PUI-CANCEL-00002';
+  let gasGlobalLatestNextId = 'PUI-CANCEL-00012';
 
   app.get('/api/cancellations/next-id', async (req, res) => {
     try {
@@ -480,7 +480,7 @@ async function startServer() {
 
       // 3. If GAS took >1.8s, return latest known ID immediately (0ms wait)
       // while fetchGas continues in the background to update cache!
-      const fallbackId = gasGlobalLatestNextId || 'PUI-CANCEL-00002';
+      const fallbackId = gasGlobalLatestNextId || 'PUI-CANCEL-00012';
       const fallbackResult = {
         success: true,
         nextId: fallbackId,

@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "PUI-CANCEL-00011",
+    "username": "6644100228 Buabucha🫐",
+    "reason": "ไม่ชอบ",
+    "category": "สลับไปใช้บริการอื่น",
+    "priority": "สูง",
+    "rating": 3,
+    "status": "ยกเลิกสำเร็จ",
+    "notes": "LINE: 6644100228 Buabucha🫐 [UID:U1d3b38aa63c9e9fea69d9c7da24efb21]",
+    "created_at": "2026-09-17T13:19:29.000Z"
+  },
+  {
+    "id": "PUI-CANCEL-00010",
+    "username": "6644100228 Buabucha🫐",
+    "reason": "คำตอบไม่ตรง",
+    "category": "เหตุผลส่วนตัว",
+    "priority": "กลาง",
+    "rating": 3,
+    "status": "ยกเลิกสำเร็จ",
+    "notes": "LINE: 6644100228 Buabucha🫐 [UID:U1d3b38aa63c9e9fea69d9c7da24efb21]",
+    "created_at": "2026-09-15T13:00:40.000Z"
+  }
+]
