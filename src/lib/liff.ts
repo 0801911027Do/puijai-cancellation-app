@@ -241,7 +241,7 @@ export async function sendLiffSummaryMessage(cancellation: {
       await liffInstance.sendMessages([
         {
           type: 'text',
-          text: `📋 [แจ้งเตือน: บันทึกขอยกเลิกสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
+          text: `📋 [แจ้งเตือน: ยกเลิกบริการสำเร็จ]\nรหัสอ้างอิงคำขอ: ${cancellation.id}\nหมวดหมู่: ${cancellation.category}\nเหตุผล: ${cancellation.reason}\n\nระบบได้รับคำขอยกเลิกและข้อเสนอแนะบริการ Puijai เรียบร้อยแล้ว ขอบคุณครับ 🙏`
         }
       ]);
       return true;

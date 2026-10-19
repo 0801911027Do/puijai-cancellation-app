@@ -150,7 +150,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
   const [reason, setReason] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('กลาง');
   const [rating, setRating] = useState<number>(3);
-  const [confirmed, setConfirmed] = useState(false);
+  const [confirmed, setConfirmed] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -278,10 +278,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-    if (!reason.trim()) {
-      setErrorMessage('กรุณากรอกเหตุผลที่ต้องการยกเลิกการใช้งาน');
-      return;
-    }
+
     if (!confirmed) {
       setErrorMessage('กรุณายืนยันความประสงค์ในการยกเลิกการใช้งาน');
       return;
@@ -308,13 +305,14 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
 
     const finalUserId = persistentKey;
     const finalUsername = userProfile?.displayName || persistentKey;
+    const resolvedReason = reason.trim() || `ขอยกเลิก (${category})`;
 
     const payload = {
       id: referenceId,
       userId: finalUserId,
       username: finalUsername,
       category,
-      reason: reason.trim(),
+      reason: resolvedReason,
       priority,
       rating,
       round: userRound,
@@ -412,7 +410,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     setReason('');
     setPriority('กลาง');
     setRating(3);
-    setConfirmed(false);
+    setConfirmed(true);
   };
 
   return (
@@ -526,29 +524,28 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           </div>
         </div>
 
-        {/* 2. Detailed Reason Textarea */}
+        {/* 2. Optional Detailed Reason Textarea */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
             <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-800 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5" aria-hidden="true">2</span>
             <label htmlFor="cancel-reason-input" className="min-w-0 flex-1 leading-snug cursor-pointer">
-              <span className="inline-block">รายละเอียดเหตุผล</span><span className="inline-block">และข้อเสนอแนะ <span className="text-rose-600 whitespace-nowrap">*</span></span>
+              <span className="inline-block">รายละเอียดเหตุผลและข้อเสนอแนะ</span> <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full ml-1 inline-block">(ไม่บังคับ - ปล่อยว่างได้)</span>
             </label>
           </h3>
 
           <div>
             <textarea
               id="cancel-reason-input"
-              rows={4}
-              required
+              rows={3}
               disabled={isSubmitting}
-              aria-label="รายละเอียดเหตุผลและข้อเสนอแนะ"
-              placeholder="ช่วยบอกเราสักนิดว่าทำไมถึงต้องการยกเลิก หรือมีจุดไหนที่คุณอยากให้น้องปุยใจปรับปรุงเพิ่มเติม (เช่น ตอบช้า, คำตอบไม่ตรงใจ, สลับไปใช้แอปอื่น ฯลฯ)..."
+              aria-label="รายละเอียดเหตุผลและข้อเสนอแนะ (ไม่บังคับ)"
+              placeholder="อยากแนะนำหรือบอกเหตุผลเพิ่มเติมไหมครับ? (เว้นว่างไว้แล้วกดปุ่มยกเลิกได้ทันที ☁️)..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-pink-600 focus:border-pink-600 text-slate-900 text-sm leading-relaxed transition-all placeholder:text-slate-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
             />
-            <p className="text-xs text-slate-700 mt-1 font-medium">
-              <span className="inline-block">ความคิดเห็นของคุณมีค่ามาก</span> <span className="inline-block">เพื่อนำไปพัฒนาการตอบคำถาม</span><span className="inline-block">ของน้องปุยใจให้ดียิ่งขึ้น ☁️</span>
+            <p className="text-xs text-slate-600 mt-1 font-medium">
+              <span className="inline-block">เว้นว่างไว้ได้ ระบบจะใช้หมวดหมู่ที่คุณเลือก</span> <span className="inline-block">เป็นเหตุผลในการยกเลิกโดยอัตโนมัติครับ ☁️</span>
             </p>
           </div>
         </div>
@@ -558,7 +555,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-start space-x-2">
             <span className="w-6 h-6 rounded-full bg-pink-100 text-pink-800 text-xs flex items-center justify-center font-bold shrink-0 mt-0.5" aria-hidden="true">3</span>
             <span className="min-w-0 flex-1 leading-snug">
-              <span className="inline-block">ระดับความเร่งด่วน</span><span className="inline-block">และความพึงพอใจ</span>
+              <span className="inline-block">ระดับความเร่งด่วนและความพึงพอใจ</span> <span className="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full ml-1 inline-block">(เลือกหรือไม่เลือกก็ได้)</span>
             </span>
           </h3>
 
@@ -645,51 +642,59 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
           </ul>
         </div>
 
-        {/* Confirmation Checkbox */}
-        <div className="pt-2">
+        {/* Confirmation & Trust Assurance */}
+        <div className="pt-2 space-y-3">
           <label className={`flex items-start space-x-3 select-none ${isSubmitting ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               id="confirm-cancellation-checkbox"
               disabled={isSubmitting}
-              aria-label="ข้าพเจ้ายืนยันการขอยกเลิกการใช้งานแชทบอท Puijai และส่งข้อเสนอแนะเข้าสู่ระบบ"
+              aria-label="ข้าพเจ้ายืนยันการขอยกเลิกการใช้งานแชทบอท Puijai"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
               className="mt-0.5 w-4 h-4 rounded border-slate-300 text-pink-600 focus:ring-pink-500 shrink-0 cursor-pointer disabled:cursor-not-allowed"
             />
             <span className="text-xs sm:text-sm text-slate-800 font-medium leading-relaxed min-w-0 flex-1">
-              <span className="inline-block">ข้าพเจ้ายืนยันการขอยกเลิกใช้งาน</span> <span className="inline-block">แชทบอท Puijai</span> <span className="inline-block">และส่งข้อเสนอแนะเข้าสู่ระบบ</span>
+              <span className="inline-block">ยืนยันขอยกเลิกใช้งาน</span> <span className="inline-block">แชทบอท Puijai</span> <span className="inline-block">และหยุดการตอบกลับอัตโนมัติทันที</span>
             </span>
           </label>
+
+          {/* Trust Badge */}
+          <div className="flex items-center space-x-2.5 p-3 rounded-xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 text-emerald-950 text-xs shadow-2xs">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div className="leading-relaxed">
+              <strong className="text-emerald-800">ปลอดภัย ไร้ข้อผูกมัด:</strong> กดยกเลิกได้ทันที ไม่มีการหักค่าใช้จ่าย และสามารถกลับมาเริ่มใช้งานใหม่ได้ตลอดเวลา
+            </div>
+          </div>
         </div>
 
         {/* Form Actions */}
         <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-xs text-slate-700 leading-normal font-medium">
-            <span className="inline-block">* ข้อมูลจะถูกจัดเก็บลงระบบ</span> <span className="inline-block">และแจ้งเตือนเข้าแชท LINE ทันที</span>
+          <div className="text-xs text-slate-600 leading-normal font-medium">
+            <span className="inline-block">⚡ ยกเลิกบริการทันที</span> <span className="inline-block">และหยุดการตอบกลับใน LINE ทันที</span>
           </div>
 
           <button
             type="submit"
-            aria-label="ยืนยันส่งคำขอยกเลิกบริการ"
+            aria-label="ยืนยันส่งคำขอยกเลิกบริการทันที"
             disabled={isSubmitting || !confirmed}
-            className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center space-x-2.5 shadow-md transition-all duration-200 ${
+            className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-sm sm:text-base text-white flex items-center justify-center space-x-2.5 shadow-md transition-all duration-200 ${
               isSubmitting
                 ? 'bg-pink-500 opacity-90 cursor-wait shadow-pink-200'
                 : confirmed
-                ? 'bg-pink-600 hover:bg-pink-700 active:scale-[0.98] shadow-pink-300 cursor-pointer'
+                ? 'bg-gradient-to-r from-pink-600 via-rose-600 to-pink-600 hover:from-pink-500 hover:to-rose-500 active:scale-[0.98] shadow-pink-300 cursor-pointer'
                 : 'bg-slate-300 cursor-not-allowed shadow-none'
             }`}
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                <span>กำลังบันทึกและส่งคำขอ...</span>
+                <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                <span>กำลังส่งคำขอยกเลิก...</span>
               </>
             ) : (
               <>
-                <Send className="w-4 h-4 shrink-0" />
-                <span>ยืนยันส่งคำขอยกเลิกบริการ</span>
+                <Send className="w-5 h-5 shrink-0" />
+                <span>⚡ ยืนยันยกเลิกบริการทันที</span>
               </>
             )}
           </button>

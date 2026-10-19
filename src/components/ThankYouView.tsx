@@ -1,44 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Cancellation, PdpaDeletionReceipt } from '../types';
+import { Cancellation } from '../types';
 import {
   CheckCircle2,
   Calendar,
   Tag,
   MessageCircle,
-  ChevronLeft,
-  ChevronRight,
-  Trash2,
-  AlertTriangle,
-  Loader2,
   RotateCcw,
-  Sparkles,
-  Menu,
-  Settings,
-  Search,
-  Phone,
   Eye,
   Smartphone,
-  BellOff,
-  Image,
-  Link,
-  Folder,
-  FileText,
-  Camera,
-  Mic,
-  X,
-  ShieldCheck,
-  ShieldAlert,
-  FileCheck,
-  Copy,
   Check,
-  ThumbsUp,
-  UserPlus,
-  Ban,
-  Wifi,
   ChevronDown,
-  ArrowDown
+  ChevronUp
 } from 'lucide-react';
-import { closeLiffWindow, getCachedLiffProfile, getLiffIdToken } from '../lib/liff';
+import { closeLiffWindow } from '../lib/liff';
 
 interface ThankYouViewProps {
   cancellationData: Cancellation;
@@ -305,24 +279,9 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
   cancellationData,
   onResetForm,
 }) => {
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isDeleted, setIsDeleted] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activeGuideStep, setActiveGuideStep] = useState<number>(1);
   const [showAllSteps, setShowAllSteps] = useState<boolean>(true);
-
-  // Reference and highlight for data deletion section
-  const deleteSectionRef = React.useRef<HTMLDivElement>(null);
-  const [isHighlightingDeleteSection, setIsHighlightingDeleteSection] = useState(false);
-
-  const scrollToDeleteSection = () => {
-    if (deleteSectionRef.current) {
-      deleteSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setIsHighlightingDeleteSection(true);
-      setTimeout(() => setIsHighlightingDeleteSection(false), 2500);
-    }
-  };
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
 
   // Pre-load all 4 guide images into memory immediately on component mount
   useEffect(() => {
@@ -340,42 +299,16 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
     }
   }, []);
 
-  // PDPA Deletion States
-  const [deletionReceipt, setDeletionReceipt] = useState<PdpaDeletionReceipt | null>(() => {
-    try {
-      const cached = localStorage.getItem(`puijai_pdpa_receipt_${cancellationData.id}`);
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
+  const handleCloseWindow = () => {
+    const closed = closeLiffWindow();
+    if (!closed) {
+      if (window.opener) {
+        window.close();
+      } else {
+        window.location.href = 'line://nv/chat';
+      }
     }
-  });
-  const [copiedReceipt, setCopiedReceipt] = useState(false);
-
-  useEffect(() => {
-    if (deletionReceipt) {
-      setIsDeleted(true);
-    }
-  }, [deletionReceipt]);
-
-  // Lock body scroll and listen for Escape key when modal is open
-  useEffect(() => {
-    if (showDeleteModal) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && !isDeleting) {
-          setShowDeleteModal(false);
-        }
-      };
-      window.addEventListener('keydown', handleKeyDown);
-
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        window.removeEventListener('keydown', handleKeyDown);
-      };
-    }
-  }, [showDeleteModal, isDeleting]);
+  };
 
   const handleReturnToLine = () => {
     const closed = closeLiffWindow();
@@ -385,67 +318,6 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
       setTimeout(() => {
         window.open('https://line.me/R/ti/p/@123xuwni', '_blank');
       }, 800);
-    }
-  };
-
-  const handleCopyReceipt = (text: string) => {
-    try {
-      navigator.clipboard.writeText(text);
-      setCopiedReceipt(true);
-      setTimeout(() => setCopiedReceipt(false), 2500);
-    } catch {}
-  };
-
-  const handleDeleteAllData = async () => {
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      const profile = getCachedLiffProfile();
-      const userId = profile?.userId || '';
-      const username = cancellationData.username;
-      const id = cancellationData.id;
-      const idToken = await getLiffIdToken();
-
-      const res = await fetch('/api/cancellations/delete-user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          username,
-          id,
-          idToken,
-          confirmationPhrase: 'ยืนยันการลบ',
-          acknowledgedPdpa: true,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'ไม่สามารถลบข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
-      }
-
-      if (json.receipt) {
-        setDeletionReceipt(json.receipt);
-        try {
-          localStorage.setItem(`puijai_pdpa_receipt_${cancellationData.id}`, JSON.stringify(json.receipt));
-        } catch {}
-      }
-
-      // Clear client-side cache & localStorage keys
-      try {
-        localStorage.removeItem(`puijai_sync_status_${cancellationData.id}`);
-        localStorage.removeItem('puijai_last_submitted_id');
-        localStorage.removeItem('puijai_registered_cancellation_id');
-        if (userId) {
-          localStorage.removeItem(`puijai_client_round_${userId}`);
-        }
-      } catch (e) {}
-
-      setIsDeleted(true);
-      setShowDeleteModal(false);
-    } catch (err: any) {
-      setDeleteError(err.message || 'เกิดข้อผิดพลาดในการลบข้อมูล');
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -464,120 +336,28 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
             ขอบคุณสำหรับข้อมูลและข้อเสนอแนะของคุณ 🙏
           </h2>
           <p className="text-base font-semibold text-emerald-700 bg-emerald-50 py-2 px-4 rounded-xl border border-emerald-200 inline-block">
-            เราได้รับและบันทึกคำขอยกเลิกบริการเรียบร้อยแล้ว
+            เราได้ดำเนินการตามคำขอยกเลิกบริการเรียบร้อยแล้ว
           </p>
         </div>
 
-        {/* 2-Step Progress Indicator: Clean, Mobile-friendly & Intriguing */}
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 text-left">
-          <div className="flex items-center justify-between text-[11px] sm:text-xs font-bold mb-2 gap-1">
-            <span className="text-slate-600 font-bold shrink-0">ขั้นตอนการดำเนินการ:</span>
-            {isDeleted ? (
-              <span className="text-emerald-700 font-extrabold flex items-center gap-1">
-                ✓ เสร็จสิ้นครบ (2/2)
-              </span>
-            ) : (
-              <span className="text-rose-600 font-extrabold flex items-center gap-1">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                </span>
-                <span>มีสเต็ป 2 ด้านล่าง (1/2)</span>
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {/* Step 1 */}
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 sm:p-3 flex items-center space-x-2.5 shadow-2xs">
-              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs font-bold shadow-xs">
-                ✓
-              </div>
-              <div className="min-w-0 flex-1 leading-tight">
-                <div className="text-[10.5px] sm:text-[11px] text-emerald-700 font-bold uppercase tracking-tight">
-                  สเต็ป 1 (สำเร็จ)
-                </div>
-                <div className="text-xs sm:text-[13px] font-extrabold text-emerald-950 mt-0.5 leading-snug">
-                  บันทึกคำขอยกเลิกเรียบร้อยแล้ว
-                </div>
-              </div>
+        {/* Submission Confirmation Status Banner */}
+        <div className="bg-gradient-to-r from-emerald-50 via-teal-50/50 to-emerald-50 border border-emerald-200 rounded-2xl p-3.5 sm:p-4 text-left shadow-2xs">
+          <div className="flex items-center justify-between text-xs font-bold mb-1.5 gap-2 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center space-x-2 text-emerald-950 font-bold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>สถานะ: ดำเนินการยกเลิกเสร็จสมบูรณ์</span>
             </div>
-
-            {/* Step 2 (Interactive Curiosity Trigger) */}
-            <button
-              type="button"
-              onClick={() => {
-                if (!isDeleted) {
-                  scrollToDeleteSection();
-                }
-              }}
-              className={`rounded-xl p-2.5 sm:p-3 flex items-center space-x-2.5 border transition-all text-left cursor-pointer shadow-2xs hover:shadow-xs group ${
-                isDeleted
-                  ? "bg-emerald-50 border-emerald-200"
-                  : "bg-rose-50/70 hover:bg-rose-100/90 border-rose-300 ring-1 ring-rose-200"
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-xs ${
-                  isDeleted
-                    ? "bg-emerald-600 text-white"
-                    : "bg-rose-600 text-white group-hover:scale-105 transition-transform"
-                }`}
-              >
-                {isDeleted ? "✓" : "2"}
-              </div>
-              <div className="min-w-0 flex-1 leading-tight">
-                <div
-                  className={`text-[10.5px] sm:text-[11px] font-bold tracking-tight flex items-center justify-between gap-1.5 ${
-                    isDeleted ? "text-emerald-700" : "text-rose-600"
-                  }`}
-                >
-                  <span className="whitespace-nowrap font-bold">
-                    {isDeleted ? "สเต็ป 2 (สำเร็จ)" : "สเต็ป 2 (ทางเลือก)"}
-                  </span>
-                  {!isDeleted && (
-                    <span className="text-[9.5px] font-bold bg-rose-200/90 text-rose-800 px-1.5 py-0.5 rounded shrink-0">
-                      แตะดู
-                    </span>
-                  )}
-                </div>
-                <div
-                  className={`text-xs sm:text-[13px] font-extrabold mt-0.5 leading-snug flex items-center gap-1 ${
-                    isDeleted ? "text-emerald-950" : "text-rose-950"
-                  }`}
-                >
-                  <span>{isDeleted ? "ลบข้อมูลเรียบร้อยแล้ว" : "ต้องการลบข้อมูลไหม?"}</span>
-                  {!isDeleted && (
-                    <span className="text-rose-600 group-hover:translate-y-0.5 transition-transform shrink-0">
-                      👇
-                    </span>
-                  )}
-                </div>
-              </div>
-            </button>
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs whitespace-nowrap">
+              ✓ ดำเนินการสำเร็จเรียบร้อย
+            </span>
           </div>
-
-          {/* Curiosity & Action Cue to prompt users about the deletion section below */}
-          {!isDeleted && (
-            <div
-              onClick={scrollToDeleteSection}
-              className="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] sm:text-xs text-slate-600 hover:text-rose-700 cursor-pointer group transition-colors"
-            >
-              <div className="flex items-center space-x-1.5 min-w-0">
-                <span className="text-rose-600 text-sm animate-bounce shrink-0">👇</span>
-                <span className="font-semibold text-slate-700 group-hover:text-rose-800 leading-snug break-words">
-                  มีขั้นตอนลบประวัติและข้อมูลแชทถาวร (PDPA) อยู่ด้านล่าง
-                </span>
-              </div>
-              <span className="text-[10px] sm:text-[11px] font-bold text-rose-600 group-hover:underline whitespace-nowrap shrink-0 ml-1.5 flex items-center">
-                แตะดู &gt;
-              </span>
-            </div>
-          )}
+          <p className="text-xs text-slate-600 leading-relaxed font-medium">
+            คำขอยกเลิกและข้อเสนอแนะได้รับการยืนยันเรียบร้อยแล้ว แชทบอท Puijai ได้ระงับการตอบกลับอัตโนมัติสำหรับบัญชีของคุณครับ ☁️
+          </p>
         </div>
 
         <p className="text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-          <span className="inline-block">คำขอยกเลิกบริการแชทบอท</span> <span className="font-bold text-slate-800 inline-block">"Puijai"</span> <span className="inline-block">รหัสคำขอ</span> <span className="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded border border-pink-200 whitespace-nowrap inline-block">{cancellationData.id}</span> <span className="inline-block">ถูกบันทึกเข้าสู่ฐานข้อมูลเรียบร้อยแล้ว</span> <span className="inline-block">แชทบอทจะหยุดการตอบกลับอัตโนมัติ</span><span className="inline-block">สำหรับบัญชีของคุณ</span> <span className="inline-block">หากในอนาคตต้องการกลับมาใช้งานใหม่</span> <span className="inline-block">น้องปุยใจยินดีต้อนรับเสมอครับ ☁️</span>
+          <span className="inline-block">คำขอยกเลิกบริการแชทบอท</span> <span className="font-bold text-slate-800 inline-block">"Puijai"</span> <span className="inline-block">รหัสคำขอ</span> <span className="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded border border-pink-200 whitespace-nowrap inline-block">{cancellationData.id}</span> <span className="inline-block">ได้รับการยืนยันเรียบร้อยแล้ว</span> <span className="inline-block">แชทบอทจะหยุดการตอบกลับอัตโนมัติ</span><span className="inline-block">สำหรับบัญชีของคุณ</span> <span className="inline-block">หากในอนาคตต้องการกลับมาใช้งานใหม่</span> <span className="inline-block">น้องปุยใจยินดีต้อนรับเสมอครับ ☁️</span>
         </p>
 
         {/* Cancellation Summary Ticket Box */}
@@ -612,154 +392,34 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
           </div>
         </div>
 
-        {/* Interactive Delete Data Card matching user's real LINE screenshot */}
-        <div
-          ref={deleteSectionRef}
-          id="delete-data-section"
-          className={`border rounded-3xl overflow-hidden bg-white shadow-sm text-left transition-all duration-500 ${
-            isHighlightingDeleteSection
-              ? 'border-rose-500 ring-4 ring-rose-400/50 shadow-xl shadow-rose-500/20 scale-[1.01]'
-              : 'border-slate-200'
-          }`}
-        >
-          {/* Header matching real LINE '< ลบข้อมูล' */}
-          <div className="bg-white border-b border-slate-200 px-3.5 sm:px-4 py-3 flex items-center justify-between gap-2">
-            <div className="flex items-center space-x-1.5 sm:space-x-2 text-slate-900 font-bold text-sm sm:text-base shrink-0">
-              <ChevronLeft className="w-5 h-5 text-slate-800 stroke-[2.5] shrink-0" />
-              <span className="whitespace-nowrap font-bold">ลบข้อมูล</span>
+        {/* Visual Guide Card: 4 Steps referencing authentic LINE screens (Collapsible Accordion) */}
+        <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-sm text-left">
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(!isGuideOpen)}
+            className="w-full bg-slate-50/90 hover:bg-slate-100/90 border-b border-slate-200 px-3.5 sm:px-4 py-3.5 flex items-center justify-between gap-2 transition-colors cursor-pointer text-left"
+          >
+            <div className="flex items-center space-x-2 text-slate-900 font-bold text-xs sm:text-sm shrink-0">
+              <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 stroke-[2] shrink-0" />
+              <span className="font-bold">วิธีลบประวัติการสนทนาในเครื่อง (ผ่านแอป LINE)</span>
             </div>
-            <span className="text-[10px] sm:text-[11px] text-slate-500 font-medium bg-slate-100 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full whitespace-nowrap shrink-0">
-              จัดการข้อมูลความเป็นส่วนตัว
-            </span>
-          </div>
+            <div className="flex items-center space-x-1.5 text-[10px] sm:text-xs font-semibold text-emerald-700 bg-emerald-100/90 px-2.5 sm:px-3 py-1 rounded-full shrink-0 shadow-2xs">
+              <span>{isGuideOpen ? 'ซ่อนคำแนะนำ' : 'ดูขั้นตอน (4 สเต็ป)'}</span>
+              {isGuideOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </div>
+          </button>
 
-          <div className="p-4 space-y-4">
-            {!isDeleted ? (
-              <>
-                <p className="text-xs text-slate-600 leading-relaxed px-1">
-                  เมื่อยกเลิกบริการเสร็จสิ้น ท่านสามารถเลือกได้ว่าจะลบข้อมูลออกจากระบบหรือเก็บข้อมูลไว้:
-                </p>
-
-                {/* The Exact Action Button styled to match real LINE 'ลบข้อมูล' screen */}
-                <div className="border-y border-slate-200 -mx-4 px-4 py-3.5 bg-white hover:bg-rose-50/40 transition-colors cursor-pointer group">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteModal(true)}
-                    className="w-full text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-1 cursor-pointer"
-                  >
-                    <div className="w-full text-left">
-                      <div className="text-base font-bold text-[#ff3b30] group-hover:text-rose-700 tracking-tight transition-colors">
-                        ลบข้อมูลแชทและข้อความแชททั้งหมด
-                      </div>
-                      <div className="text-xs text-slate-500 mt-0.5 font-normal">
-                        ข้อมูลแชทและข้อความแชททั้งหมดจะถูกลบ
-                      </div>
-                    </div>
-                    <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200 whitespace-nowrap shrink-0 mt-2 sm:mt-0">
-                      แตะเพื่อลบ
-                    </span>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4 text-left">
-                {/* Official PDPA Erasure Certificate Box */}
-                <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-sky-50 rounded-2xl border-2 border-emerald-300 p-3.5 sm:p-5 shadow-sm relative">
-                  <div className="border-b border-emerald-200/80 pb-3 mb-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                          <ShieldCheck className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <h4 className="text-[12px] min-[360px]:text-[12.5px] min-[390px]:text-[13.5px] sm:text-sm font-extrabold text-emerald-950 tracking-tight leading-snug">
-                              <span className="inline-block">ใบสำคัญการทำลาย</span><span className="inline-block">ข้อมูลส่วนบุคคล</span>
-                            </h4>
-                            <span className="text-[9.5px] sm:text-[10px] bg-emerald-200/90 text-emerald-900 px-1.5 py-0.5 rounded font-bold uppercase shrink-0">
-                              PDPA
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-[10px] sm:text-xs font-bold bg-emerald-600 text-white px-3 py-1 rounded-full whitespace-nowrap shadow-2xs shrink-0 self-start sm:self-center flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>ทำลายข้อมูลสำเร็จ</span>
-                      </span>
-                    </div>
-
-                    {/* Subtitle spans full width without dropping awkward words */}
-                    <div className="mt-1.5 pl-0 sm:pl-[44px] text-[10.5px] sm:text-[11.5px] text-emerald-800 font-medium leading-normal">
-                      <span className="inline-block">พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</span>{' '}
-                      <span className="inline-block">(มาตรา 33 - Right to Erasure)</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-xs text-slate-700">
-                    <div className="bg-white/95 p-3 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-                      <div>
-                        <span className="text-[11px] text-slate-500 font-medium block">รหัสอ้างอิงใบสำคัญ (Receipt ID):</span>
-                        <span className="font-mono font-bold text-emerald-800 text-xs sm:text-sm select-all">
-                          {deletionReceipt?.receiptId || `PDPA-DEL-${cancellationData.id}`}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyReceipt(deletionReceipt?.receiptId || `PDPA-DEL-${cancellationData.id}`)}
-                        className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-[11px] rounded-lg transition-colors flex items-center space-x-1 shrink-0 cursor-pointer self-start sm:self-auto"
-                      >
-                        {copiedReceipt ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>คัดลอกแล้ว</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>คัดลอกรหัส</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-100">
-                        <span className="text-slate-500 block">สิทธิที่ใช้ตามกฎหมาย:</span>
-                        <span className="font-bold text-slate-900">Right to Erasure (มาตรา 33)</span>
-                      </div>
-                      <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-100">
-                        <span className="text-slate-500 block">วันเวลาที่ทำลายข้อมูล:</span>
-                        <span className="font-bold text-slate-900">
-                          {deletionReceipt?.timestamp ? new Date(deletionReceipt.timestamp).toLocaleString('th-TH') : new Date().toLocaleString('th-TH')}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 text-[11px] text-slate-600 leading-relaxed border-t border-emerald-200/60">
-                      <p className="font-bold text-emerald-950">
-                        🛡️ สถานะการดำเนินการลบข้อมูลในระบบ:
-                      </p>
-                      <ul className="list-disc list-inside space-y-0.5 mt-1 text-slate-700 font-medium">
-                        <li>ลบข้อมูลคำขอยกเลิกและข้อมูลระบุตัวบุคคลออกจากฐานข้อมูลถาวร (Hard Delete)</li>
-                        <li>ลบข้อมูลออกจากระบบฐานข้อมูลส่วนกลางเรียบร้อยแล้ว</li>
-                        <li>ล้างแคชและเซสชันการเข้าถึงของผู้ใช้</li>
-                        <li>เก็บบันทึกหลักฐานการใช้สิทธิใน PDPA Compliance Audit Trail สำหรับ สคส.</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-start space-x-2.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    <span className="font-bold">ขั้นตอนสุดท้ายในมือถือของคุณ:</span> เนื่องจากนโยบายความปลอดภัยของ LINE ระบบภายนอกไม่สามารถสั่งลบแชทในโทรศัพท์ของคุณได้ กรุณาทำตามคำแนะนำ 4 สเต็ปด้านล่างเพื่อลบประวัติการสนทนาในเครื่องมือถือครับ
-                  </div>
-                </div>
-              </div>
-            )}
+          {isGuideOpen && (
+            <div className="p-4 sm:p-5 space-y-4">
+            <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-3 sm:p-3.5 text-xs text-emerald-950 leading-relaxed flex items-start space-x-2.5 shadow-2xs">
+              <span className="text-emerald-600 text-sm shrink-0 mt-0.5">💡</span>
+              <p>
+                <strong>คำแนะนำสำหรับผู้ใช้งาน:</strong> เพื่อความสะอาดของห้องแชทในเครื่องโทรศัพท์ของคุณ ท่านสามารถทำตาม 4 สเต็ปด้านล่างเพื่อลบประวัติข้อความเก่าในแอป LINE ได้เลยครับ <em>(ระบบได้ดำเนินการยกเลิกบริการของคุณเรียบร้อยแล้ว)</em>
+              </p>
+            </div>
 
             {/* Visual Guide: 4 Steps referencing authentic LINE screens */}
-            <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+            <div className="space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
                 <div className="font-bold text-slate-900 flex items-center space-x-1.5 text-xs sm:text-sm min-w-0">
                   <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1097,142 +757,49 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
               </div>
             </div>
           </div>
+        )}
         </div>
 
         {/* Primary Action Buttons */}
         <div className="pt-3 flex flex-col items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={handleReturnToLine}
-            className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center space-x-2.5 shadow-lg shadow-emerald-900/20 active:scale-98 transition-all cursor-pointer ring-4 ring-emerald-500/20"
-          >
-            <MessageCircle className="w-5 h-5" />
-            <span>🚀 เปิดแอป LINE บนมือถือ เพื่อลบประวัติแชทจริงทันที</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleCloseWindow}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center space-x-2 shadow-lg shadow-emerald-900/20 active:scale-98 transition-all cursor-pointer ring-4 ring-emerald-500/20"
+            >
+              <Check className="w-5 h-5 stroke-[2.5]" />
+              <span>ปิดหน้าต่างนี้ (เสร็จสิ้น)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleReturnToLine}
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all border border-slate-200 shadow-xs cursor-pointer active:scale-98"
+            >
+              <MessageCircle className="w-5 h-5 text-emerald-600" />
+              <span>เปิดห้องแชทน้องปุยใจใน LINE</span>
+            </button>
+          </div>
+
           <p className="text-[11.5px] text-slate-500 max-w-sm text-center font-medium">
-            * แตะปุ่มนี้เพื่อเปิดห้องแชทน้องปุยใจในแอป LINE บนโทรศัพท์ของคุณโดยตรง แล้วทำตาม 4 ขั้นตอนด้านบนได้สะดวกและรวดเร็ว
+            * ระบบได้ระงับการตอบกลับของน้องปุยใจเรียบร้อยแล้ว ท่านสามารถปิดหน้านี้ได้ทันทีครับ ☁️
           </p>
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
             <button
               type="button"
               onClick={onResetForm}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all border border-slate-200 shadow-xs cursor-pointer active:scale-98"
+              className="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 active:bg-slate-200 text-slate-600 font-semibold text-xs flex items-center justify-center space-x-2 transition-all border border-slate-200 shadow-2xs cursor-pointer active:scale-98"
               title="ล้างข้อมูลและกลับไปหน้าแบบฟอร์มเริ่มต้นใหม่"
             >
-              <RotateCcw className="w-4 h-4 text-slate-500" />
+              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
               <span>ยื่นเรื่องใหม่อีกครั้ง</span>
             </button>
           </div>
         </div>
       </div>
-
-      {/* PDPA Data Erasure Confirmation Modal (Simplified & Clean) */}
-      {showDeleteModal && (
-        <div 
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !isDeleting) {
-              setShowDeleteModal(false);
-            }
-          }}
-        >
-          <div className="bg-white rounded-3xl max-w-md w-full flex flex-col shadow-2xl border border-slate-100 text-left overflow-hidden my-auto animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="bg-white px-4 sm:px-5 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 z-10">
-              <div className="flex items-center space-x-2.5 min-w-0 pr-2">
-                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 ring-4 ring-rose-50">
-                  <ShieldAlert className="w-5 h-5 stroke-[2]" />
-                </div>
-                <div className="min-w-0 flex-1 pr-1">
-                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-tight break-words">
-                    ยืนยันการลบข้อมูลส่วนบุคคล
-                  </h3>
-                  <p className="text-[10.5px] sm:text-xs text-rose-700 font-semibold mt-0.5 leading-snug break-words">
-                    พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (มาตรา 33)
-                  </p>
-                </div>
-              </div>
-
-              {/* Close Button X */}
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setShowDeleteModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors shrink-0 cursor-pointer shadow-xs disabled:opacity-50"
-                aria-label="ปิดหน้าต่าง"
-                title="ปิดหน้าต่าง (ยกเลิก)"
-              >
-                <X className="w-4.5 h-4.5 stroke-[2.5]" />
-              </button>
-            </div>
-
-            {/* Content Body */}
-            <div className="p-4 sm:p-5 space-y-3.5 text-left">
-              {/* Data Summary */}
-              <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80 space-y-2 text-xs">
-                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
-                  📋 ข้อมูลที่จะถูกลบถาวร (Hard Delete):
-                </span>
-                <div className="space-y-1 text-slate-600">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">บัญชีผู้ใช้:</span>
-                    <span className="font-semibold text-slate-800">{cancellationData.username}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">รหัสคำขอ:</span>
-                    <span className="font-mono font-bold text-rose-600">{cancellationData.id}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Warning Alert */}
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 flex items-start space-x-2">
-                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  <span className="font-bold">คำเตือน:</span> เมื่อยืนยันแล้ว ข้อมูลคำขอยกเลิกและข้อมูลระบุตัวตนของคุณจะถูกลบออกจากระบบทันทีและ<strong>ไม่สามารถกู้คืนได้</strong> ระบบจะออกรหัสใบสำคัญ PDPA ให้เป็นหลักฐาน
-                </div>
-              </div>
-
-              {deleteError && (
-                <div className="p-3 bg-rose-100/90 border border-rose-300 rounded-xl text-rose-800 text-xs font-semibold">
-                  {deleteError}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer - Direct 2 Buttons */}
-            <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-100 shrink-0 flex flex-col-reverse sm:flex-row gap-2">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setShowDeleteModal(false)}
-                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer text-center"
-              >
-                ยกเลิก (เก็บข้อมูลไว้)
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleDeleteAllData}
-                className="w-full sm:flex-1 py-2.5 sm:py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-rose-900/20"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>กำลังลบข้อมูล...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>ยืนยันลบข้อมูล</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+

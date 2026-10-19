@@ -247,44 +247,21 @@ app.post('/api/line/webhook', async (req, res) => {
       let replyMessages: any[] = [];
 
       if (isDeleteIntent) {
-        // Trigger deletion in local store and forward to GAS
-        deleteUserCancellations([userId, displayName]);
-        if (userId) {
-          for (const key of gasUserCache.keys()) {
-            if (key.toLowerCase().includes(userId.toLowerCase())) {
-              gasUserCache.delete(key);
-            }
-          }
-        }
-        const gasWebhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbzekm0u18dOk_iVIdA92e_TwcxXaudq5B4i_vK68bxA-hoHbsYpygaAi5Hc45ArFMlv/exec';
-        try {
-          fetch(gasWebhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'deleteUser',
-              userId: userId || '',
-              username: displayName || ''
-            }),
-            redirect: 'follow',
-            signal: AbortSignal.timeout(6000)
-          }).catch(() => {});
-        } catch (e) {}
-
+        // Do not delete cancellation record from Google Sheets - guide user on clearing phone chat only
         replyMessages = [{
           type: 'flex',
-          altText: '🗑️ ลบข้อมูลในระบบเรียบร้อยแล้ว',
+          altText: '📱 วิธีลบประวัติแชทบนมือถือของคุณ',
           contents: {
             type: 'bubble',
             size: 'mega',
             header: {
               type: 'box',
               layout: 'vertical',
-              backgroundColor: '#e11d48',
+              backgroundColor: '#0d9488',
               paddingAll: '16px',
               contents: [
-                { type: 'text', text: '🗑️ ลบข้อมูลในระบบเรียบร้อย', weight: 'bold', color: '#ffffff', size: 'md' },
-                { type: 'text', text: 'Puijai Data Privacy & Deletion', size: 'xs', color: '#ffe4e6', margin: 'xs' }
+                { type: 'text', text: '📱 วิธีลบประวัติแชทบนมือถือ', weight: 'bold', color: '#ffffff', size: 'md' },
+                { type: 'text', text: 'Puijai Cancellation Service', size: 'xs', color: '#ccfbf1', margin: 'xs' }
               ]
             },
             body: {
@@ -292,23 +269,23 @@ app.post('/api/line/webhook', async (req, res) => {
               layout: 'vertical',
               spacing: 'md',
               contents: [
-                { type: 'text', text: `เรียนคุณ ${displayName} 🔒`, weight: 'bold', size: 'md', color: '#0f172a' },
-                { type: 'text', text: 'ระบบได้ลบประวัติคำขอยกเลิกและข้อมูลของคุณออกจากฐานข้อมูลและ Google Sheets เรียบร้อยแล้วครับ', wrap: true, size: 'sm', color: '#475569' },
+                { type: 'text', text: `เรียนคุณ ${displayName} ☁️`, weight: 'bold', size: 'md', color: '#0f172a' },
+                { type: 'text', text: 'ระบบได้บันทึกคำขอยกเลิกของคุณเรียบร้อยแล้วครับ หากต้องการล้างประวัติข้อความเก่าในเครื่องโทรศัพท์มือถือ สามารถทำตาม 4 ขั้นตอนนี้ได้เลยครับ:', wrap: true, size: 'sm', color: '#475569' },
                 {
                   type: 'box',
                   layout: 'vertical',
-                  backgroundColor: '#fff1f2',
+                  backgroundColor: '#f0fdf4',
                   paddingAll: '12px',
                   cornerRadius: '8px',
-                  borderColor: '#fecdd3',
+                  borderColor: '#bbf7d0',
                   borderWidth: '1px',
                   spacing: 'xs',
                   contents: [
-                    { type: 'text', text: '📱 ขั้นตอนลบข้อมูลแชทบนมือถือของคุณ:', weight: 'bold', size: 'xs', color: '#be123c' },
-                    { type: 'text', text: '1. แตะเมนู ☰ (มุมขวาบนของห้องแชทนี้)', size: 'xs', color: '#9f1239' },
-                    { type: 'text', text: '2. เลือก "ตั้งค่าอื่นๆ" (Other Settings)', size: 'xs', color: '#9f1239' },
-                    { type: 'text', text: '3. เลือก "ลบข้อมูล"', size: 'xs', color: '#9f1239' },
-                    { type: 'text', text: '4. กด "ลบข้อมูลแชทและข้อความแชททั้งหมด"', size: 'xs', weight: 'bold', color: '#e11d48' }
+                    { type: 'text', text: '📱 4 ขั้นตอนล้างประวัติแชทในมือถือ:', weight: 'bold', size: 'xs', color: '#166534' },
+                    { type: 'text', text: '1. แตะเมนู ☰ (มุมขวาบนของห้องแชทนี้)', size: 'xs', color: '#14532d' },
+                    { type: 'text', text: '2. เลือก "ตั้งค่าอื่นๆ" (Other Settings)', size: 'xs', color: '#14532d' },
+                    { type: 'text', text: '3. เลือก "ลบข้อมูล"', size: 'xs', color: '#14532d' },
+                    { type: 'text', text: '4. กด "ลบข้อมูลแชทและข้อความแชททั้งหมด" ในเครื่องของคุณ', size: 'xs', weight: 'bold', color: '#15803d' }
                   ]
                 }
               ]
@@ -372,19 +349,7 @@ app.post('/api/line/webhook', async (req, res) => {
                 layout: 'vertical',
                 spacing: 'sm',
                 contents: [
-                  { type: 'button', action: { type: 'uri', label: 'ดูรายละเอียดคำขอ / ยื่นเรื่องใหม่', uri: liffUrl }, style: 'secondary', height: 'sm' },
-                  {
-                    type: 'button',
-                    action: {
-                      type: 'postback',
-                      label: '🗑️ ลบข้อมูลแชทและข้อความทั้งหมด',
-                      data: 'action=delete_all_data',
-                      displayText: 'ลบข้อมูลแชทและข้อความแชททั้งหมด'
-                    },
-                    style: 'primary',
-                    color: '#e11d48',
-                    height: 'sm'
-                  }
+                  { type: 'button', action: { type: 'uri', label: 'ดูรายละเอียดคำขอ / ยื่นเรื่องใหม่', uri: liffUrl }, style: 'secondary', height: 'sm' }
                 ]
               }
             }
@@ -521,9 +486,7 @@ app.post('/api/cancellations', async (req, res) => {
   try {
     const { id, userId, username, reason, category, priority, email, phone, rating, round, notes } = req.body;
 
-    if (!reason) {
-      return res.status(400).json({ success: false, error: 'กรุณากรอกเหตุผลการยกเลิก' });
-    }
+    const finalReason = String(reason || '').trim() || String(category || '').trim() || 'ขอยกเลิกการใช้งานแชทบอท';
 
     const cleanUserId = String(userId || '').trim();
     const cleanUsername = String(username || '').trim() || cleanUserId;
@@ -541,7 +504,7 @@ app.post('/api/cancellations', async (req, res) => {
         body: JSON.stringify({
           userId: cleanUserId,
           username: cleanUsername,
-          reason: String(reason).trim(),
+          reason: finalReason,
           category: category || 'อื่นๆ',
           priority: priority || 'กลาง',
           rating: rating ? Number(rating) : 3,
@@ -582,7 +545,7 @@ app.post('/api/cancellations', async (req, res) => {
     const saved = saveCancellation({
       id: finalId,
       username: cleanUsername || finalId,
-      reason: String(reason).trim(),
+      reason: finalReason,
       category: category || 'อื่นๆ',
       priority: priority || 'กลาง',
       email: email ? String(email).trim() : undefined,

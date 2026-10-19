@@ -139,7 +139,7 @@ export default function App() {
       {/* Toast Notification */}
       {showSubmitToast && (
         <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center space-x-3 animate-bounce">
-          <span className="text-xs sm:text-sm font-bold">✅ บันทึกข้อมูลขอยกเลิกสำเร็จแล้ว!</span>
+          <span className="text-xs sm:text-sm font-bold">✅ ดำเนินการยกเลิกบริการสำเร็จแล้ว!</span>
         </div>
       )}
 
