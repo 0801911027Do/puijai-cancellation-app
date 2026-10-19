@@ -50,13 +50,10 @@ const CATEGORIES: CategoryItem[] = [
 if (typeof window !== 'undefined') {
   try {
     const legacy = localStorage.getItem('puijai_global_next_id');
-    if (legacy) {
-      const match = legacy.match(/PUI-CANCEL-(\d+)/i);
-      if (match && parseInt(match[1], 10) < 12) {
-        localStorage.removeItem('puijai_global_next_id');
-        localStorage.removeItem('puijai_last_sync_status');
-        localStorage.removeItem('puijai_last_submitted_id');
-      }
+    if (legacy && (legacy.includes('999') || legacy.includes('9336') || legacy.includes('1530') || legacy.includes('00012') || legacy.includes('00010') || legacy.includes('00011'))) {
+      localStorage.removeItem('puijai_global_next_id');
+      localStorage.removeItem('puijai_last_sync_status');
+      localStorage.removeItem('puijai_last_submitted_id');
     }
   } catch (e) {}
 }
@@ -68,7 +65,7 @@ export const getIncrementedId = (currentId: string): string => {
     const num = parseInt(match[1], 10);
     return `PUI-CANCEL-${String(num + 1).padStart(5, '0')}`;
   }
-  return 'PUI-CANCEL-00012';
+  return 'PUI-CANCEL-00003';
 };
 
 // Instant cached user status helper (0ms before first paint - Real-time SWR)
@@ -105,14 +102,11 @@ const getInitialUserStatus = () => {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.nextId) {
-          const match = String(parsed.nextId).match(/PUI-CANCEL-(\d+)/i);
-          if (match && parseInt(match[1], 10) >= 12) {
-            return {
-              referenceId: parsed.nextId,
-              userRound: parsed.currentRound || 1,
-              previousCount: parsed.totalHistory || (parsed.currentRound ? parsed.currentRound - 1 : 0),
-            };
-          }
+          return {
+            referenceId: parsed.nextId,
+            userRound: parsed.currentRound || 1,
+            previousCount: parsed.totalHistory || (parsed.currentRound ? parsed.currentRound - 1 : 0),
+          };
         }
       }
     }
@@ -120,31 +114,25 @@ const getInitialUserStatus = () => {
     // 2. Check global next ID or last submitted ID (incremented)
     const globalNextId = localStorage.getItem('puijai_global_next_id');
     if (globalNextId) {
-      const match = String(globalNextId).match(/PUI-CANCEL-(\d+)/i);
-      if (match && parseInt(match[1], 10) >= 12) {
-        return {
-          referenceId: globalNextId,
-          userRound: 1,
-          previousCount: 0,
-        };
-      }
+      return {
+        referenceId: globalNextId,
+        userRound: 1,
+        previousCount: 0,
+      };
     }
 
     const lastId = localStorage.getItem('puijai_last_submitted_id');
     if (lastId) {
-      const match = String(lastId).match(/PUI-CANCEL-(\d+)/i);
-      if (match && parseInt(match[1], 10) >= 11) {
-        return {
-          referenceId: getIncrementedId(lastId),
-          userRound: 1,
-          previousCount: 0,
-        };
-      }
+      return {
+        referenceId: getIncrementedId(lastId),
+        userRound: 1,
+        previousCount: 0,
+      };
     }
   } catch (e) {}
 
   return {
-    referenceId: 'PUI-CANCEL-00012',
+    referenceId: 'PUI-CANCEL-00003',
     userRound: 1,
     previousCount: 0,
   };
@@ -201,7 +189,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
       const targetUsername = profileObj?.displayName || urlUsername || targetUserId;
 
       const updateData = (data: any) => {
-        if (data && data.nextId && data.nextId !== 'PUI-CANCEL-00003' && isMounted) {
+        if (data && data.nextId && isMounted) {
           setReferenceId(data.nextId);
           if (data.currentRound) {
             setUserRound(data.currentRound);
@@ -211,9 +199,6 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
             localStorage.setItem(`puijai_sync_status_${targetUserId}`, JSON.stringify(data));
             localStorage.setItem('puijai_global_next_id', data.nextId);
           } catch (e) {}
-          return true;
-        } else if (data && data.nextId && isMounted) {
-          setReferenceId(data.nextId);
           return true;
         }
         return false;
@@ -336,7 +321,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
     // Ensure final result object — instant, authoritative pre-computed ID
     const finalResult = {
       ...payload,
-      id: referenceId || 'PUI-CANCEL-00012',
+      id: referenceId || 'PUI-CANCEL-00003',
       round: userRound,
       status: 'ยกเลิกสำเร็จ' as const,
     };
@@ -483,7 +468,7 @@ export const CancelForm: React.FC<CancelFormProps> = ({ onSubmitSuccess }) => {
               รหัสคำขอ:
             </span>
             <strong className="font-mono font-bold text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 shadow-2xs whitespace-nowrap text-xs sm:text-sm tracking-tight shrink-0 transition-all duration-200">
-              {referenceId || 'PUI-CANCEL-00012'}
+              {referenceId || 'PUI-CANCEL-00003'}
             </strong>
           </div>
         </div>
