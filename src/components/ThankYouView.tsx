@@ -393,19 +393,25 @@ export const ThankYouView: React.FC<ThankYouViewProps> = ({
         </div>
 
         {/* Visual Guide Card: 4 Steps referencing authentic LINE screens (Collapsible Accordion) */}
-        <div className="border border-slate-200 rounded-3xl overflow-hidden bg-white shadow-sm text-left">
+        <div className="border border-slate-200 rounded-2xl sm:rounded-3xl overflow-hidden bg-white shadow-sm text-left">
           <button
             type="button"
             onClick={() => setIsGuideOpen(!isGuideOpen)}
-            className="w-full bg-slate-50/90 hover:bg-slate-100/90 border-b border-slate-200 px-3.5 sm:px-4 py-3.5 flex items-center justify-between gap-2 transition-colors cursor-pointer text-left"
+            aria-expanded={isGuideOpen}
+            className={`w-full bg-slate-50/90 hover:bg-slate-100/90 px-3.5 sm:px-4 py-3 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-3 transition-colors cursor-pointer text-left ${
+              isGuideOpen ? 'border-b border-slate-200' : ''
+            }`}
           >
-            <div className="flex items-center space-x-2 text-slate-900 font-bold text-xs sm:text-sm shrink-0">
+            <div className="flex items-center space-x-2 sm:space-x-2.5 min-w-0 flex-1">
               <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 stroke-[2] shrink-0" />
-              <span className="font-bold">วิธีลบประวัติการสนทนาในเครื่อง (ผ่านแอป LINE)</span>
+              <div className="font-bold text-xs sm:text-sm text-slate-900 leading-snug min-w-0 flex-1 break-words">
+                <span className="inline-block">วิธีลบประวัติการสนทนา</span>{' '}
+                <span className="inline-block text-slate-600 text-[11px] sm:text-xs font-medium">(ผ่านแอป LINE)</span>
+              </div>
             </div>
-            <div className="flex items-center space-x-1.5 text-[10px] sm:text-xs font-semibold text-emerald-700 bg-emerald-100/90 px-2.5 sm:px-3 py-1 rounded-full shrink-0 shadow-2xs">
-              <span>{isGuideOpen ? 'ซ่อนคำแนะนำ' : 'ดูขั้นตอน (4 สเต็ป)'}</span>
-              {isGuideOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            <div className="flex items-center space-x-1 sm:space-x-1.5 text-[10.5px] sm:text-xs font-bold text-emerald-700 bg-emerald-100/90 px-2.5 sm:px-3 py-1 rounded-full shrink-0 shadow-2xs whitespace-nowrap">
+              <span>{isGuideOpen ? 'ซ่อน' : 'ดู 4 สเต็ป'}</span>
+              {isGuideOpen ? <ChevronUp className="w-3.5 h-3.5 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 shrink-0" />}
             </div>
           </button>
 
